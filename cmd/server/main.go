@@ -10,6 +10,6 @@ func main() {
 	adress := ":8080"
 	stor := storage.NewMemStorage()
 
-	s := httpserver.NewHttpServer(adress, stor)
+	s := httpserver.NewHTTPServer(adress, stor)
 	s.Run()
 }

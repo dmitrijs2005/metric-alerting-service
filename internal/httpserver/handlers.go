@@ -8,7 +8,7 @@ import (
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
 )
 
-func (s *HttpServer) UpdateHandler(w http.ResponseWriter, req *http.Request) {
+func (s *HTTPServer) UpdateHandler(w http.ResponseWriter, req *http.Request) {
 
 	// lets' check method first
 	if req.Method != http.MethodPost {

@@ -6,13 +6,13 @@ import (
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
 )
 
-type HttpServer struct {
+type HTTPServer struct {
 	Address string
 	Storage storage.Storage
 }
 
-func NewHttpServer(address string, storage storage.Storage) *HttpServer {
-	return &HttpServer{Address: address, Storage: storage}
+func NewHTTPServer(address string, storage storage.Storage) *HTTPServer {
+	return &HTTPServer{Address: address, Storage: storage}
 }
 
 // Сервер должен быть доступен по адресу http://localhost:8080, а также:
@@ -27,13 +27,13 @@ func NewHttpServer(address string, storage storage.Storage) *HttpServer {
 // При попытке передать запрос без имени метрики возвращать http.StatusNotFound.
 // При попытке передать запрос с некорректным типом метрики или значением возвращать http.StatusBadRequest.
 
-func (s *HttpServer) NewMetricServerMux() *http.ServeMux {
+func (s *HTTPServer) NewMetricServerMux() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc(`/update/`, s.UpdateHandler)
 	return mux
 }
 
-func (s *HttpServer) Run() error {
+func (s *HTTPServer) Run() error {
 
 	h := s.NewMetricServerMux()
 
