@@ -1,11 +1,11 @@
 package httpserver
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metrics"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
 )
 
 func (s *HttpServer) UpdateHandler(w http.ResponseWriter, req *http.Request) {
@@ -37,26 +37,44 @@ func (s *HttpServer) UpdateHandler(w http.ResponseWriter, req *http.Request) {
 	metricName := urlParts[3]
 	metricValue := urlParts[4]
 
-	m, err := metrics.NewMetricFromRequest(metricType, metricName, metricValue)
+	m, err := s.Storage.Retrieve(metrics.MetricType(metricType), metricName)
 
+	if m == nil && err.Error() == storage.MetricDoesNotExist {
+		m, err = metrics.NewMetric(metrics.MetricType(metricType), metricName)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		err = s.Storage.Add(m)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	err = m.Update(metricValue)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Error: %s", err.Error()), http.StatusBadRequest)
+
+		if err.Error() == metrics.ErrorInvalidMetricValue {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 		return
 	}
 
-	err = s.Storage.Update(m)
-
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// test
-	// mr, err := s.Storage.Retrieve(metricType, metricName)
+	// all, err := s.Storage.RetrieveAll()
 
 	// if err != nil {
 	// 	http.Error(w, err.Error(), http.StatusInternalServerError)
 	// 	return
+	// }
+
+	// fmt.Println("")
+	// fmt.Println("")
+	// fmt.Println("====")
+	// for a, b := range all {
+	// 	fmt.Println(a, b)
 	// }
 
 	// if everything is correct and metric was saved
