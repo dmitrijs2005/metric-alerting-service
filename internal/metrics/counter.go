@@ -6,8 +6,8 @@ import (
 )
 
 type Counter struct {
-	name  string
-	value int64
+	Name  string
+	Value int64
 }
 
 func (c *Counter) GetType() MetricType {
@@ -15,11 +15,11 @@ func (c *Counter) GetType() MetricType {
 }
 
 func (c *Counter) GetName() string {
-	return c.name
+	return c.Name
 }
 
 func (c *Counter) GetValue() interface{} {
-	return c.value
+	return c.Value
 }
 
 func (c *Counter) tryParseInt64Value(value interface{}) (int64, error) {
@@ -52,10 +52,10 @@ func (c *Counter) Update(value interface{}) error {
 		return err
 	}
 
-	c.value += val
+	c.Value += val
 	return nil
 }
 
 func NewCounter(name string) *Counter {
-	return &Counter{name: name}
+	return &Counter{Name: name}
 }

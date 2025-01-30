@@ -6,8 +6,8 @@ import (
 )
 
 type Gauge struct {
-	name  string
-	value float64
+	Name  string
+	Value float64
 }
 
 func (c *Gauge) GetType() MetricType {
@@ -15,11 +15,11 @@ func (c *Gauge) GetType() MetricType {
 }
 
 func (c *Gauge) GetName() string {
-	return c.name
+	return c.Name
 }
 
 func (c *Gauge) GetValue() interface{} {
-	return c.value
+	return c.Value
 }
 
 func (c *Gauge) tryParseFloat64Value(value interface{}) (float64, error) {
@@ -52,10 +52,10 @@ func (c *Gauge) Update(value interface{}) error {
 		return err
 	}
 
-	c.value = val
+	c.Value = val
 	return nil
 }
 
 func NewGauge(name string) *Gauge {
-	return &Gauge{name: name}
+	return &Gauge{Name: name}
 }

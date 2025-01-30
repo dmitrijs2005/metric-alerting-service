@@ -5,10 +5,6 @@ import (
 	"regexp"
 )
 
-func IsValidMetricType(t string) bool {
-	return MetricType(t) == MetricTypeGauge || MetricType(t) == MetricTypeCounter
-}
-
 // Metric names and labels (from Prometheus docs)
 // Every time series is uniquely identified by its metric name and optional key-value pairs called labels.
 

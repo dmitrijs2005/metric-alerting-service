@@ -39,7 +39,6 @@ func (a *MetricAgent) updateGauge(metricName string, metricValue float64) {
 	}
 
 	m.Update(metricValue)
-
 }
 
 func (a *MetricAgent) updateCounter(metricName string, metricValue int64) {
@@ -85,8 +84,6 @@ func (a *MetricAgent) SendMetric(m metrics.Metric, wg *sync.WaitGroup) {
 		fmt.Printf("Error making request: %v\n", err)
 		return
 	}
-
-	//fmt.Println(url, resp.StatusCode)
 
 	defer resp.Body.Close()
 
