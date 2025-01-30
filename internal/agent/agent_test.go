@@ -80,7 +80,7 @@ func TestMetricAgent_SendMetric(t *testing.T) {
 			defer mockServer.Close()
 
 			agent := &MetricAgent{
-				ServerUrl:  mockServer.URL,
+				ServerURL:  mockServer.URL,
 				HTTPClient: &http.Client{},
 			}
 

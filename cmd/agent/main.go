@@ -6,8 +6,8 @@ func main() {
 
 	pollInterval := 2
 	reportInterval := 10
-	serverUrl := "http://localhost:8080"
+	serverURL := "http://localhost:8080"
 
-	a := agent.NewMetricAgent(pollInterval, reportInterval, serverUrl)
+	a := agent.NewMetricAgent(pollInterval, reportInterval, serverURL)
 	a.Run()
 }

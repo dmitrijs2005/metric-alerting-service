@@ -15,17 +15,17 @@ type MetricAgent struct {
 	PollInterval   int
 	ReportInterval int
 	Data           map[string]metrics.Metric
-	ServerUrl      string
+	ServerURL      string
 	HTTPClient     *http.Client
 }
 
-func NewMetricAgent(pollInterval int, reportInterval int, serverUrl string) *MetricAgent {
+func NewMetricAgent(pollInterval int, reportInterval int, serverURL string) *MetricAgent {
 
 	return &MetricAgent{
 		PollInterval:   pollInterval,
 		ReportInterval: reportInterval,
 		Data:           make(map[string]metrics.Metric),
-		ServerUrl:      serverUrl,
+		ServerURL:      serverURL,
 		HTTPClient:     &http.Client{},
 	}
 }
@@ -69,7 +69,7 @@ func (a *MetricAgent) SendMetric(m metrics.Metric, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	v := fmt.Sprintf("%v", m.GetValue())
-	url := fmt.Sprintf("%s/update/%s/%s/%s", a.ServerUrl, m.GetType(), m.GetName(), v)
+	url := fmt.Sprintf("%s/update/%s/%s/%s", a.ServerURL, m.GetType(), m.GetName(), v)
 
 	request, err := http.NewRequest(http.MethodPost, url, nil)
 	if err != nil {
