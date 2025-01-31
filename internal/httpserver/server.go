@@ -1,9 +1,12 @@
 package httpserver
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 )
 
 type HTTPServer struct {
@@ -27,20 +30,28 @@ func NewHTTPServer(address string, storage storage.Storage) *HTTPServer {
 // При попытке передать запрос без имени метрики возвращать http.StatusNotFound.
 // При попытке передать запрос с некорректным типом метрики или значением возвращать http.StatusBadRequest.
 
-func (s *HTTPServer) NewMetricServerMux() *http.ServeMux {
-	mux := http.NewServeMux()
-	mux.HandleFunc(`/update/`, s.UpdateHandler)
-	return mux
-}
+// Доработайте сервер так, чтобы в ответ на запрос GET http://<АДРЕС_СЕРВЕРА>/value/<ТИП_МЕТРИКИ>/<ИМЯ_МЕТРИКИ> он возвращал аккумулированное значение метрики в текстовом виде со статусом http.StatusOK.
+// При попытке запроса неизвестной метрики сервер должен возвращать http.StatusNotFound.
+// По запросу GET http://<АДРЕС_СЕРВЕРА>/ сервер должен отдавать HTML-страницу со списком имён и значений всех известных ему на текущий момент метрик.
+// Хендлеры должны взаимодействовать с экземпляром MemStorage при помощи соответствующих интерфейсных методов.
 
 func (s *HTTPServer) Run() error {
 
-	h := s.NewMetricServerMux()
+	// Echo instance
+	e := echo.New()
 
-	err := http.ListenAndServe(s.Address, h)
+	// Middleware
+	e.Use(middleware.Logger())
+	e.Use(middleware.Recover())
 
-	if err != nil {
-		panic(err)
+	e.POST("/update/:type/:name/:value", s.UpdateHandler)
+
+	server := http.Server{
+		Addr:    s.Address,
+		Handler: e,
+	}
+	if err := server.ListenAndServe(); err != http.ErrServerClosed {
+		log.Fatal(err)
 	}
 
 	return nil
