@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"fmt"
+	"html/template"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -159,4 +160,43 @@ func TestHTTPServer_ValueHandler(t *testing.T) {
 
 		})
 	}
+}
+
+func TestHTTPServer_ListHandler(t *testing.T) {
+
+	metric1 := &metrics.Counter{Name: "counter1", Value: 1}
+	metric2 := &metrics.Gauge{Name: "gauge1", Value: 1.234}
+
+	addr := "http://localhost:8080"
+	stor := storage.NewMemStorage()
+
+	stor.Data["counter|counter1"] = metric1
+	stor.Data["gauge|gauge1"] = metric2
+
+	s := &HTTPServer{
+		Address: addr,
+		Storage: stor,
+	}
+
+	e := echo.New()
+
+	// Load templates
+	r := &Template{
+		templates: template.Must(template.ParseGlob("../../web/template/*.html")),
+	}
+	e.Renderer = r
+
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+
+	c := e.NewContext(request, rec)
+
+	if assert.NoError(t, s.ListHandler(c)) {
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.True(t, strings.Contains(rec.Body.String(), metric1.Name))
+		assert.True(t, strings.Contains(rec.Body.String(), metric1.Name))
+
+		assert.Equal(t, "text/html; charset=UTF-8", rec.Header().Get("Content-Type"))
+	}
+
 }

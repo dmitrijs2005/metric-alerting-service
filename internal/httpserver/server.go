@@ -1,6 +1,7 @@
 package httpserver
 
 import (
+	"html/template"
 	"log"
 	"net/http"
 
@@ -37,6 +38,11 @@ func NewHTTPServer(address string, storage storage.Storage) *HTTPServer {
 
 func (s *HTTPServer) Run() error {
 
+	// Load templates
+	t := &Template{
+		templates: template.Must(template.ParseGlob("web/template/*.html")),
+	}
+
 	// Echo instance
 	e := echo.New()
 
@@ -46,6 +52,9 @@ func (s *HTTPServer) Run() error {
 
 	e.POST("/update/:type/:name/:value", s.UpdateHandler)
 	e.GET("/value/:type/:name", s.ValueHandler)
+	e.GET("/", s.ListHandler)
+
+	e.Renderer = t
 
 	server := http.Server{
 		Addr:    s.Address,

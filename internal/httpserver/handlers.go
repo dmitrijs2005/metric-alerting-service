@@ -3,6 +3,7 @@ package httpserver
 import (
 	"fmt"
 	"net/http"
+	"sort"
 
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metrics"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
@@ -54,4 +55,19 @@ func (s *HTTPServer) ValueHandler(c echo.Context) error {
 	}
 
 	return c.String(http.StatusOK, fmt.Sprintf("%v", m.GetValue()))
+}
+
+func (s *HTTPServer) ListHandler(c echo.Context) error {
+
+	metrics, err := s.Storage.RetrieveAll()
+
+	if err != nil {
+		return c.String(http.StatusInternalServerError, err.Error())
+	}
+
+	sort.Slice(metrics, func(i, j int) bool {
+		return metrics[i].GetName() < metrics[j].GetName()
+	})
+
+	return c.Render(http.StatusOK, "list.html", metrics)
 }
