@@ -1,6 +1,7 @@
 package httpserver
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dmitrijs2005/metric-alerting-service/internal/metrics"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
 )
 
@@ -99,6 +101,61 @@ func TestHTTPServer_UpdateHandler_404_405(t *testing.T) {
 
 			e.ServeHTTP(rec, request)
 			assert.Equal(t, tt.want.code, rec.Code)
+
+		})
+	}
+}
+
+func TestHTTPServer_ValueHandler(t *testing.T) {
+
+	metric1 := &metrics.Counter{Name: "counter1", Value: 1}
+	metric2 := &metrics.Gauge{Name: "gauge1", Value: 1.234}
+
+	addr := "http://localhost:8080"
+	stor := storage.NewMemStorage()
+
+	stor.Data["counter|counter1"] = metric1
+	stor.Data["gauge|gauge1"] = metric2
+
+	type want struct {
+		code        int
+		response    string
+		contentType string
+	}
+	tests := []struct {
+		want   want
+		name   string
+		method string
+		url    string
+	}{
+
+		{name: "Counter OK", method: http.MethodGet, url: "/value/counter/counter1", want: want{code: 200, response: fmt.Sprintf("%v", metric1.GetValue()), contentType: "text/plain; charset=UTF-8"}},
+		{name: "Gauge OK", method: http.MethodGet, url: "/value/gauge/gauge1", want: want{code: 200, response: fmt.Sprintf("%v", metric2.GetValue()), contentType: "text/plain; charset=UTF-8"}},
+		{name: "Unnown metric", method: http.MethodGet, url: "/value/gauge/unknwn", want: want{code: 404, response: storage.MetricDoesNotExist, contentType: "text/plain; charset=UTF-8"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &HTTPServer{
+				Address: addr,
+				Storage: stor,
+			}
+
+			e := echo.New()
+
+			request := httptest.NewRequest(tt.method, "/", nil)
+			rec := httptest.NewRecorder()
+
+			c := e.NewContext(request, rec)
+
+			parts := strings.Split(tt.url, "/")
+			c.SetParamNames("type", "name")
+			c.SetParamValues(parts[2], parts[3])
+
+			if assert.NoError(t, s.ValueHandler(c)) {
+				assert.Equal(t, tt.want.code, rec.Code)
+				assert.Equal(t, tt.want.response, rec.Body.String())
+				assert.Equal(t, tt.want.contentType, rec.Header().Get("Content-Type"))
+			}
 
 		})
 	}

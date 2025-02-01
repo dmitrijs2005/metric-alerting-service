@@ -45,6 +45,7 @@ func (s *HTTPServer) Run() error {
 	e.Use(middleware.Recover())
 
 	e.POST("/update/:type/:name/:value", s.UpdateHandler)
+	e.GET("/value/:type/:name", s.ValueHandler)
 
 	server := http.Server{
 		Addr:    s.Address,

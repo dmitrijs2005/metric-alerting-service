@@ -15,8 +15,6 @@ func (s *HTTPServer) UpdateHandler(c echo.Context) error {
 	metricName := c.Param("name")
 	metricValue := c.Param("value")
 
-	fmt.Println(metricType, metricName, metricValue)
-
 	m, err := s.Storage.Retrieve(metrics.MetricType(metricType), metricName)
 
 	if m == nil && err.Error() == storage.MetricDoesNotExist {
@@ -42,4 +40,18 @@ func (s *HTTPServer) UpdateHandler(c echo.Context) error {
 
 	// if everything is correct and metric was saved
 	return c.String(http.StatusOK, "OK")
+}
+
+func (s *HTTPServer) ValueHandler(c echo.Context) error {
+
+	metricType := c.Param("type")
+	metricName := c.Param("name")
+
+	m, err := s.Storage.Retrieve(metrics.MetricType(metricType), metricName)
+
+	if m == nil && err.Error() == storage.MetricDoesNotExist {
+		return c.String(http.StatusNotFound, err.Error())
+	}
+
+	return c.String(http.StatusOK, fmt.Sprintf("%v", m.GetValue()))
 }
