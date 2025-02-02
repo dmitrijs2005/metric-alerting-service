@@ -7,9 +7,11 @@ import (
 
 func main() {
 
-	adress := ":8080"
+	//adress := ":8080"
 	stor := storage.NewMemStorage()
 
-	s := httpserver.NewHTTPServer(adress, stor)
+	parseFlags()
+
+	s := httpserver.NewHTTPServer(flagEndpointAddr, stor)
 	s.Run()
 }

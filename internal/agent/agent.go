@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"net/http"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -69,7 +70,13 @@ func (a *MetricAgent) SendMetric(m metrics.Metric, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	v := fmt.Sprintf("%v", m.GetValue())
-	url := fmt.Sprintf("%s/update/%s/%s/%s", a.ServerURL, m.GetType(), m.GetName(), v)
+
+	url := a.ServerURL
+	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
+		url = "http://" + url
+	}
+
+	url = fmt.Sprintf("%s/update/%s/%s/%s", url, m.GetType(), m.GetName(), v)
 
 	request, err := http.NewRequest(http.MethodPost, url, nil)
 	if err != nil {
