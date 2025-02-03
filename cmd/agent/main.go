@@ -1,10 +1,13 @@
 package main
 
-import "github.com/dmitrijs2005/metric-alerting-service/internal/agent"
+import (
+	"github.com/dmitrijs2005/metric-alerting-service/cmd/agent/config"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/agent"
+)
 
 func main() {
 
-	parseFlags()
-	a := agent.NewMetricAgent(options.PollInterval, options.ReportInterval, options.EndpointAddr)
+	cfg := config.LoadConfig()
+	a := agent.NewMetricAgent(cfg.PollInterval, cfg.ReportInterval, cfg.EndpointAddr)
 	a.Run()
 }
