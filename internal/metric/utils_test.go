@@ -1,4 +1,4 @@
-package metrics
+package metric
 
 import (
 	"testing"
@@ -41,10 +41,10 @@ func TestNewMetric(t *testing.T) {
 		args    args
 		want    Metric
 		wantErr bool
-		errMsg  string
+		err     error
 	}{
-		{"Test Counter OK ", args{c.GetType(), c.GetName()}, c, false, ""},
-		{"Test Gauge OK ", args{g.GetType(), g.GetName()}, g, false, ""},
+		{"Test Counter OK ", args{c.GetType(), c.GetName()}, c, false, nil},
+		{"Test Gauge OK ", args{g.GetType(), g.GetName()}, g, false, nil},
 		{"Test Error", args{"unknown", "unknown"}, nil, true, ErrorInvalidMetricType},
 	}
 	for _, tt := range tests {
@@ -52,7 +52,7 @@ func TestNewMetric(t *testing.T) {
 			got, err := NewMetric(tt.args.metricType, tt.args.metricName)
 			if tt.wantErr {
 				assert.Error(t, err)
-				assert.ErrorContains(t, err, tt.errMsg)
+				assert.ErrorIs(t, err, tt.err)
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, tt.want, got)

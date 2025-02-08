@@ -9,13 +9,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dmitrijs2005/metric-alerting-service/internal/metrics"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
 )
 
 type MetricAgent struct {
 	PollInterval   int
 	ReportInterval int
-	Data           map[string]metrics.Metric
+	Data           map[string]metric.Metric
 	ServerURL      string
 	HTTPClient     *http.Client
 }
@@ -25,7 +25,7 @@ func NewMetricAgent(pollInterval int, reportInterval int, serverURL string) *Met
 	return &MetricAgent{
 		PollInterval:   pollInterval,
 		ReportInterval: reportInterval,
-		Data:           make(map[string]metrics.Metric),
+		Data:           make(map[string]metric.Metric),
 		ServerURL:      serverURL,
 		HTTPClient:     &http.Client{},
 	}
@@ -35,7 +35,7 @@ func (a *MetricAgent) updateGauge(metricName string, metricValue float64) {
 	m, exists := a.Data[metricName]
 
 	if !exists {
-		m = metrics.NewGauge(metricName)
+		m = metric.NewGauge(metricName)
 		a.Data[metricName] = m
 	}
 
@@ -46,7 +46,7 @@ func (a *MetricAgent) updateCounter(metricName string, metricValue int64) {
 	m, exists := a.Data[metricName]
 
 	if !exists {
-		m = metrics.NewCounter(metricName)
+		m = metric.NewCounter(metricName)
 		a.Data[metricName] = m
 	}
 
@@ -66,7 +66,7 @@ func (a *MetricAgent) updateCounter(metricName string, metricValue int64) {
 // Content-Type: text/plain
 // Пример ответа от сервера:
 
-func (a *MetricAgent) SendMetric(m metrics.Metric, wg *sync.WaitGroup) {
+func (a *MetricAgent) SendMetric(m metric.Metric, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	v := fmt.Sprintf("%v", m.GetValue())
@@ -102,7 +102,7 @@ func (a *MetricAgent) RunReport(wg *sync.WaitGroup) {
 
 	for {
 
-		fmt.Println("Sending metrics...")
+		//fmt.Println("Sending metrics...")
 		sendWg := sync.WaitGroup{}
 		for _, v := range a.Data {
 			sendWg.Add(1)
@@ -122,7 +122,7 @@ func (a *MetricAgent) RunPoll(wg *sync.WaitGroup) {
 
 	for {
 
-		fmt.Println("Updating metrics...")
+		//fmt.Println("Updating metrics...")
 
 		ms := &runtime.MemStats{}
 		runtime.ReadMemStats(ms)

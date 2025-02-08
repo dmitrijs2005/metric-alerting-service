@@ -5,14 +5,14 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/dmitrijs2005/metric-alerting-service/internal/metrics"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func Test_getKey(t *testing.T) {
 	type args struct {
-		metricType metrics.MetricType
+		metricType metric.MetricType
 		metricName string
 	}
 	tests := []struct {
@@ -20,8 +20,8 @@ func Test_getKey(t *testing.T) {
 		args args
 		want string
 	}{
-		{name: "Test1", args: args{metricType: metrics.MetricTypeCounter, metricName: "counter1"}, want: "counter|counter1"},
-		{name: "Test2", args: args{metricType: metrics.MetricTypeGauge, metricName: "gauge1"}, want: "gauge|gauge1"},
+		{name: "Test1", args: args{metricType: metric.MetricTypeCounter, metricName: "counter1"}, want: "counter|counter1"},
+		{name: "Test2", args: args{metricType: metric.MetricTypeGauge, metricName: "gauge1"}, want: "gauge|gauge1"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -37,11 +37,11 @@ func Test_getKey(t *testing.T) {
 
 func TestMemStorage_Retrieve(t *testing.T) {
 
-	metric1 := &metrics.Counter{Name: "counter1", Value: 1}
-	metric2 := &metrics.Gauge{Name: "gauge1", Value: 3.14}
+	metric1 := &metric.Counter{Name: "counter1", Value: 1}
+	metric2 := &metric.Gauge{Name: "gauge1", Value: 3.14}
 
 	s := &MemStorage{
-		Data: map[string]metrics.Metric{
+		Data: map[string]metric.Metric{
 			"counter|counter1": metric1,
 			"gauge|gauge1":     metric2,
 		},
@@ -49,18 +49,18 @@ func TestMemStorage_Retrieve(t *testing.T) {
 	}
 
 	type args struct {
-		metricType metrics.MetricType
+		metricType metric.MetricType
 		metricName string
 	}
 	tests := []struct {
 		name    string
 		args    args
-		want    metrics.Metric
+		want    metric.Metric
 		wantErr bool
 	}{
-		{name: "Retrieve Existing Metric (counter)", args: args{metricType: metrics.MetricTypeCounter, metricName: metric1.Name}, want: metric1, wantErr: false},
-		{name: "Retrieve Existing Metric (gauge)", args: args{metricType: metrics.MetricTypeGauge, metricName: metric2.Name}, want: metric2, wantErr: false},
-		{name: "Retrieve Non-Existing Metric", args: args{metricType: metrics.MetricTypeGauge, metricName: "unknown"}, want: nil, wantErr: true},
+		{name: "Retrieve Existing Metric (counter)", args: args{metricType: metric.MetricTypeCounter, metricName: metric1.Name}, want: metric1, wantErr: false},
+		{name: "Retrieve Existing Metric (gauge)", args: args{metricType: metric.MetricTypeGauge, metricName: metric2.Name}, want: metric2, wantErr: false},
+		{name: "Retrieve Non-Existing Metric", args: args{metricType: metric.MetricTypeGauge, metricName: "unknown"}, want: nil, wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -79,11 +79,11 @@ func TestMemStorage_Retrieve(t *testing.T) {
 
 func TestMemStorage_RetrieveAll(t *testing.T) {
 
-	metric1 := &metrics.Counter{Name: "counter1", Value: 1}
-	metric2 := &metrics.Gauge{Name: "gauge1", Value: 3.14}
+	metric1 := &metric.Counter{Name: "counter1", Value: 1}
+	metric2 := &metric.Gauge{Name: "gauge1", Value: 3.14}
 
 	s := &MemStorage{
-		Data: map[string]metrics.Metric{
+		Data: map[string]metric.Metric{
 			"counter|counter1": metric1,
 			"gauge|gauge1":     metric2,
 		},
@@ -92,10 +92,10 @@ func TestMemStorage_RetrieveAll(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		want    []metrics.Metric
+		want    []metric.Metric
 		wantErr bool
 	}{
-		{name: "Get all metrics", want: []metrics.Metric{metric1, metric2}, wantErr: false},
+		{name: "Get all metrics", want: []metric.Metric{metric1, metric2}, wantErr: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -112,11 +112,11 @@ func TestMemStorage_RetrieveAll(t *testing.T) {
 
 func TestMemStorage_Add(t *testing.T) {
 
-	metric1 := &metrics.Counter{Name: "counter1", Value: 1}
-	metric2 := &metrics.Gauge{Name: "gauge1", Value: 3.14}
+	metric1 := &metric.Counter{Name: "counter1", Value: 1}
+	metric2 := &metric.Gauge{Name: "gauge1", Value: 3.14}
 
 	type args struct {
-		metric metrics.Metric
+		metric metric.Metric
 	}
 	tests := []struct {
 		name    string
@@ -131,7 +131,7 @@ func TestMemStorage_Add(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 
 			s := &MemStorage{
-				Data: map[string]metrics.Metric{
+				Data: map[string]metric.Metric{
 					"counter|counter1": metric1,
 				},
 				mu: sync.Mutex{},
@@ -153,11 +153,11 @@ func TestMemStorage_Add(t *testing.T) {
 
 func TestMemStorage_Update(t *testing.T) {
 
-	mcb := &metrics.Counter{Name: "counter1", Value: 1}
-	mgb := &metrics.Gauge{Name: "gauge1", Value: 1}
+	mcb := &metric.Counter{Name: "counter1", Value: 1}
+	mgb := &metric.Gauge{Name: "gauge1", Value: 1}
 
 	s := &MemStorage{
-		Data: map[string]metrics.Metric{
+		Data: map[string]metric.Metric{
 			fmt.Sprintf("%s|%s", mcb.GetType(), mcb.GetName()): mcb,
 			fmt.Sprintf("%s|%s", mgb.GetType(), mgb.GetName()): mgb,
 		},
@@ -165,7 +165,7 @@ func TestMemStorage_Update(t *testing.T) {
 	}
 
 	type args struct {
-		metric metrics.Metric
+		metric metric.Metric
 		value  interface{}
 	}
 	tests := []struct {

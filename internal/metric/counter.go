@@ -1,7 +1,6 @@
-package metrics
+package metric
 
 import (
-	"errors"
 	"strconv"
 )
 
@@ -30,7 +29,7 @@ func (c *Counter) tryParseInt64Value(value interface{}) (int64, error) {
 	if ok {
 		val, err := strconv.ParseInt(stringVal, 10, 64)
 		if err != nil {
-			return -1, errors.New(ErrorInvalidMetricValue)
+			return -1, ErrorInvalidMetricValue
 		}
 		return val, nil
 	}
@@ -38,7 +37,7 @@ func (c *Counter) tryParseInt64Value(value interface{}) (int64, error) {
 	val, ok := value.(int64)
 
 	if !ok {
-		return -1, errors.New(ErrorInvalidMetricValue)
+		return -1, ErrorInvalidMetricValue
 	}
 	return val, nil
 

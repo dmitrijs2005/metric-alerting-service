@@ -7,13 +7,13 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/dmitrijs2005/metric-alerting-service/internal/metrics"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestMetricAgent_updateGauge(t *testing.T) {
 	a := &MetricAgent{
-		Data: make(map[string]metrics.Metric),
+		Data: make(map[string]metric.Metric),
 	}
 	type args struct {
 		metricName  string
@@ -28,7 +28,7 @@ func TestMetricAgent_updateGauge(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			a.updateGauge(tt.args.metricName, tt.args.metricValue)
-			assert.Equal(t, a.Data[tt.args.metricName].GetType(), metrics.MetricTypeGauge)
+			assert.Equal(t, a.Data[tt.args.metricName].GetType(), metric.MetricTypeGauge)
 			assert.Equal(t, a.Data[tt.args.metricName].GetValue(), tt.args.metricValue)
 		})
 	}
@@ -36,7 +36,7 @@ func TestMetricAgent_updateGauge(t *testing.T) {
 
 func TestMetricAgent_updateCounter(t *testing.T) {
 	a := &MetricAgent{
-		Data: make(map[string]metrics.Metric),
+		Data: make(map[string]metric.Metric),
 	}
 	type args struct {
 		metricName  string
@@ -51,7 +51,7 @@ func TestMetricAgent_updateCounter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			a.updateCounter(tt.args.metricName, tt.args.metricValue)
-			assert.Equal(t, a.Data[tt.args.metricName].GetType(), metrics.MetricTypeCounter)
+			assert.Equal(t, a.Data[tt.args.metricName].GetType(), metric.MetricTypeCounter)
 			assert.Equal(t, a.Data[tt.args.metricName].GetValue(), tt.args.metricValue)
 		})
 	}
@@ -59,12 +59,12 @@ func TestMetricAgent_updateCounter(t *testing.T) {
 
 func TestMetricAgent_SendMetric(t *testing.T) {
 
-	metric1 := &metrics.Counter{Name: "counter1", Value: 1}
-	metric2 := &metrics.Gauge{Name: "gauge1", Value: 1}
+	metric1 := &metric.Counter{Name: "counter1", Value: 1}
+	metric2 := &metric.Gauge{Name: "gauge1", Value: 1}
 
 	tests := []struct {
 		name   string
-		metric metrics.Metric
+		metric metric.Metric
 	}{
 		{"Test Counter", metric1},
 		{"Test Gauge", metric2},

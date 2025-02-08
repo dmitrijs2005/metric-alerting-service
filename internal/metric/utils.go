@@ -1,7 +1,6 @@
-package metrics
+package metric
 
 import (
-	"errors"
 	"regexp"
 )
 
@@ -27,7 +26,7 @@ func IsMetricNameValid(n string) bool {
 func NewMetric(metricType MetricType, metricName string) (Metric, error) {
 
 	if !IsMetricNameValid(metricName) {
-		return nil, errors.New(ErrorInvalidMetricName)
+		return nil, ErrorInvalidMetricName
 	}
 
 	switch metricType {
@@ -36,7 +35,7 @@ func NewMetric(metricType MetricType, metricName string) (Metric, error) {
 	case MetricTypeCounter:
 		return NewCounter(metricName), nil
 	default:
-		return nil, errors.New(ErrorInvalidMetricType)
+		return nil, ErrorInvalidMetricType
 	}
 
 }

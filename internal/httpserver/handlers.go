@@ -1,11 +1,12 @@
 package httpserver
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
 
-	"github.com/dmitrijs2005/metric-alerting-service/internal/metrics"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
 	"github.com/labstack/echo/v4"
 )
@@ -16,10 +17,10 @@ func (s *HTTPServer) UpdateHandler(c echo.Context) error {
 	metricName := c.Param("name")
 	metricValue := c.Param("value")
 
-	m, err := s.Storage.Retrieve(metrics.MetricType(metricType), metricName)
+	m, err := s.Storage.Retrieve(metric.MetricType(metricType), metricName)
 
 	if m == nil && err.Error() == storage.MetricDoesNotExist {
-		m, err = metrics.NewMetric(metrics.MetricType(metricType), metricName)
+		m, err = metric.NewMetric(metric.MetricType(metricType), metricName)
 		if err != nil {
 			return c.String(http.StatusBadRequest, err.Error())
 		}
@@ -32,7 +33,7 @@ func (s *HTTPServer) UpdateHandler(c echo.Context) error {
 	err = m.Update(metricValue)
 	if err != nil {
 
-		if err.Error() == metrics.ErrorInvalidMetricValue {
+		if errors.Is(err, metric.ErrorInvalidMetricValue) {
 			return c.String(http.StatusBadRequest, err.Error())
 		} else {
 			return c.String(http.StatusInternalServerError, err.Error())
@@ -48,7 +49,7 @@ func (s *HTTPServer) ValueHandler(c echo.Context) error {
 	metricType := c.Param("type")
 	metricName := c.Param("name")
 
-	m, err := s.Storage.Retrieve(metrics.MetricType(metricType), metricName)
+	m, err := s.Storage.Retrieve(metric.MetricType(metricType), metricName)
 
 	if m == nil && err.Error() == storage.MetricDoesNotExist {
 		return c.String(http.StatusNotFound, err.Error())

@@ -1,6 +1,6 @@
 package storage
 
-import "github.com/dmitrijs2005/metric-alerting-service/internal/metrics"
+import "github.com/dmitrijs2005/metric-alerting-service/internal/metric"
 
 const (
 	MetricDoesNotExist  = "metric does not exist"
@@ -8,8 +8,8 @@ const (
 )
 
 type Storage interface {
-	Add(m metrics.Metric) error
-	Update(m metrics.Metric, v interface{}) error
-	Retrieve(m metrics.MetricType, n string) (metrics.Metric, error)
-	RetrieveAll() ([]metrics.Metric, error)
+	Add(m metric.Metric) error
+	Update(m metric.Metric, v interface{}) error
+	Retrieve(m metric.MetricType, n string) (metric.Metric, error)
+	RetrieveAll() ([]metric.Metric, error)
 }

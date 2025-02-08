@@ -11,7 +11,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dmitrijs2005/metric-alerting-service/internal/metrics"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
 )
 
@@ -109,8 +109,8 @@ func TestHTTPServer_UpdateHandler_404_405(t *testing.T) {
 
 func TestHTTPServer_ValueHandler(t *testing.T) {
 
-	metric1 := &metrics.Counter{Name: "counter1", Value: 1}
-	metric2 := &metrics.Gauge{Name: "gauge1", Value: 1.234}
+	metric1 := &metric.Counter{Name: "counter1", Value: 1}
+	metric2 := &metric.Gauge{Name: "gauge1", Value: 1.234}
 
 	addr := "http://localhost:8080"
 	stor := storage.NewMemStorage()
@@ -164,8 +164,8 @@ func TestHTTPServer_ValueHandler(t *testing.T) {
 
 func TestHTTPServer_ListHandler(t *testing.T) {
 
-	metric1 := &metrics.Counter{Name: "counter1", Value: 1}
-	metric2 := &metrics.Gauge{Name: "gauge1", Value: 1.234}
+	metric1 := &metric.Counter{Name: "counter1", Value: 1}
+	metric2 := &metric.Gauge{Name: "gauge1", Value: 1.234}
 
 	addr := "http://localhost:8080"
 	stor := storage.NewMemStorage()

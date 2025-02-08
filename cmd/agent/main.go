@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/dmitrijs2005/metric-alerting-service/cmd/agent/config"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/agent"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/agent/config"
 )
 
 func main() {
