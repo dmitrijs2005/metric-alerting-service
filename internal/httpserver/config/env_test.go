@@ -4,6 +4,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 )
 
@@ -13,11 +14,11 @@ func TestParseEnv(t *testing.T) {
 	tests := []struct {
 		name     string
 		addr     string
-		expected Config
+		expected *Config
 	}{
-		{"Test1 ip:port", "127.0.0.1:9090", Config{"127.0.0.1:9090"}},
-		{"Test1 :port", ":8080", Config{":8080"}}, // Default value
-		{"Test1 empty string", "", Config{""}},    // Edge case: empty value
+		{"Test1 ip:port", "127.0.0.1:9090", &Config{"127.0.0.1:9090"}},
+		{"Test1 :port", ":8080", &Config{":8080"}}, // Default value
+		{"Test1 empty string", "", &Config{""}},    // Edge case: empty value
 	}
 
 	for _, tt := range tests {
@@ -28,15 +29,16 @@ func TestParseEnv(t *testing.T) {
 			err := os.Setenv("ADDRESS", tt.addr)
 			require.NoError(t, err)
 
-			parseEnv()
+			config := &Config{}
+			parseEnv(config)
 
 			err = os.Setenv("ADDRESS", oldAddr)
 			if err != nil {
 				panic(err)
 			}
 
-			if config != tt.expected {
-				t.Errorf("parseEnv() with args %v; expected %q, got %q", tt.addr, tt, config)
+			if diff := cmp.Diff(config, tt.expected); diff != "" {
+				t.Errorf("Structs mismatch (-config +expected):\n%s", diff)
 			}
 		})
 	}

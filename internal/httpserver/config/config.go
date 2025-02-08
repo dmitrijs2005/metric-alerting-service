@@ -1,13 +1,14 @@
 package config
 
-var config Config
+//var config Config
 
 type Config struct {
 	EndpointAddr string
 }
 
 func LoadConfig() *Config {
-	parseFlags()
-	parseEnv()
-	return &config
+	config := &Config{}
+	parseFlags(config)
+	parseEnv(config)
+	return config
 }

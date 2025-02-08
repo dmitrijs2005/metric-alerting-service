@@ -4,6 +4,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,11 +17,11 @@ func TestParseEnv(t *testing.T) {
 		reportInterval string
 		pollInterval   string
 		expectPanic    bool
-		expected       Config
+		expected       *Config
 	}{
-		{"Test1 OK", "127.0.0.1:9090", "10", "5", false, Config{"127.0.0.1:9090", 10, 5}},
-		{"Test2 incorrect report interval", "127.0.0.1:9090", "a", "5", true, Config{}},
-		{"Test2 incorrect report interval", "127.0.0.1:9090", "20", "a", true, Config{}},
+		{"Test1 OK", "127.0.0.1:9090", "10", "5", false, &Config{"127.0.0.1:9090", 10, 5}},
+		{"Test2 incorrect report interval", "127.0.0.1:9090", "a", "5", true, &Config{}},
+		{"Test2 incorrect report interval", "127.0.0.1:9090", "20", "a", true, &Config{}},
 	}
 
 	for _, tt := range tests {
@@ -40,8 +41,10 @@ func TestParseEnv(t *testing.T) {
 				panic(err)
 			}
 
+			config := &Config{}
+
 			if !tt.expectPanic {
-				require.NotPanics(t, parseEnv)
+				require.NotPanics(t, func() { parseEnv(config) })
 
 				err := os.Setenv("ADDRESS", oldAddr)
 				if err != nil {
@@ -57,11 +60,12 @@ func TestParseEnv(t *testing.T) {
 				if err = os.Setenv("POLL_INTERVAL", oldPI); err != nil {
 					panic(err)
 				}
-				if config != tt.expected {
-					t.Errorf("parseEnv() with args %v; expected %v, got %v", tt.addr, tt, config)
+
+				if diff := cmp.Diff(config, tt.expected); diff != "" {
+					t.Errorf("Structs mismatch (-config +expected):\n%s", diff)
 				}
 			} else {
-				require.Panics(t, parseEnv)
+				require.Panics(t, func() { parseEnv(config) })
 			}
 		})
 	}

@@ -5,8 +5,8 @@ import (
 	"strconv"
 )
 
-func parseEnv() {
-	if addr, ok := os.LookupEnv("ADDRESS"); ok {
+func parseEnv(config *Config) {
+	if addr, ok := os.LookupEnv("ADDRESS"); ok && addr != "" {
 		config.EndpointAddr = addr
 	}
 	if envVar, ok := os.LookupEnv("REPORT_INTERVAL"); ok {

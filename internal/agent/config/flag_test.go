@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,23 +28,18 @@ func TestParseFlags(t *testing.T) {
 			flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.PanicOnError)
 
 			os.Args = tt.args
+
+			config := &Config{}
+
 			if !tt.expectPanic {
 
-				require.NotPanics(t, parseFlags)
+				require.NotPanics(t, func() { parseFlags(config) })
 
-				if config.EndpointAddr != tt.expected.EndpointAddr {
-					t.Errorf("parseFlags() with args %v; expected %q, got %q", tt.args, tt.expected.EndpointAddr, config.EndpointAddr)
-				}
-
-				if config.ReportInterval != tt.expected.ReportInterval {
-					t.Errorf("parseFlags() with args %v; expected %d, got %d", tt.args, tt.expected.ReportInterval, config.ReportInterval)
-				}
-
-				if config.PollInterval != tt.expected.PollInterval {
-					t.Errorf("parseFlags() with args %v; expected %d, got %d", tt.args, tt.expected.PollInterval, config.PollInterval)
+				if diff := cmp.Diff(config, tt.expected); diff != "" {
+					t.Errorf("Structs mismatch (-config +expected):\n%s", diff)
 				}
 			} else {
-				require.Panics(t, parseFlags)
+				require.Panics(t, func() { parseFlags(config) })
 			}
 		})
 	}
