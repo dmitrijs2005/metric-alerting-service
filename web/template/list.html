@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Metric List</title>
+    </head>
+    <body>
+        <h1>Metrics</h1>
+        <table>
+            {{range .}}
+            <tr><td>{{.Name}}</td><td>{{printf "%v" .Value}}</td></tr>
+            {{end}}
+        </table>
+    </body>
+</html>
