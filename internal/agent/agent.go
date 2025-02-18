@@ -13,8 +13,8 @@ import (
 )
 
 type MetricAgent struct {
-	PollInterval   int
-	ReportInterval int
+	PollInterval   time.Duration
+	ReportInterval time.Duration
 	Data           map[string]metric.Metric
 	ServerURL      string
 	HTTPClient     *http.Client
@@ -23,8 +23,8 @@ type MetricAgent struct {
 func NewMetricAgent(pollInterval int, reportInterval int, serverURL string) *MetricAgent {
 
 	return &MetricAgent{
-		PollInterval:   pollInterval,
-		ReportInterval: reportInterval,
+		PollInterval:   time.Duration(pollInterval) * time.Second,
+		ReportInterval: time.Duration(reportInterval) * time.Second,
 		Data:           make(map[string]metric.Metric),
 		ServerURL:      serverURL,
 		HTTPClient:     &http.Client{},
@@ -110,7 +110,7 @@ func (a *MetricAgent) RunReport(wg *sync.WaitGroup) {
 		}
 		sendWg.Wait()
 
-		time.Sleep(time.Duration(a.ReportInterval) * time.Second)
+		time.Sleep(a.ReportInterval)
 
 	}
 
@@ -158,7 +158,7 @@ func (a *MetricAgent) RunPoll(wg *sync.WaitGroup) {
 		a.updateGauge("RandomValue", rand.Float64())
 		a.updateCounter("PollCount", 1)
 
-		time.Sleep(time.Duration(a.PollInterval) * time.Second)
+		time.Sleep(a.PollInterval)
 	}
 }
 
