@@ -1,22 +1,25 @@
 package httpserver
 
 import (
+	"fmt"
 	"html/template"
-	"log"
 	"net/http"
 
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
 	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
+	"go.uber.org/zap"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type HTTPServer struct {
 	Address string
 	Storage storage.Storage
+	Logger  *zap.SugaredLogger
 }
 
-func NewHTTPServer(address string, storage storage.Storage) *HTTPServer {
-	return &HTTPServer{Address: address, Storage: storage}
+func NewHTTPServer(address string, storage storage.Storage, logger *zap.SugaredLogger) *HTTPServer {
+	return &HTTPServer{Address: address, Storage: storage, Logger: logger}
 }
 
 // Сервер должен быть доступен по адресу http://localhost:8080, а также:
@@ -36,25 +39,29 @@ func NewHTTPServer(address string, storage storage.Storage) *HTTPServer {
 // По запросу GET http://<АДРЕС_СЕРВЕРА>/ сервер должен отдавать HTML-страницу со списком имён и значений всех известных ему на текущий момент метрик.
 // Хендлеры должны взаимодействовать с экземпляром MemStorage при помощи соответствующих интерфейсных методов.
 
-func (s *HTTPServer) Run() error {
+func (s *HTTPServer) ConfigureRoutes(templatePath string) *echo.Echo {
 
 	// Load templates
 	t := &Template{
-		templates: template.Must(template.ParseGlob("web/template/*.html")),
+		templates: template.Must(template.ParseGlob(fmt.Sprintf("%s/*.html", templatePath))),
 	}
 
 	// Echo instance
 	e := echo.New()
 
-	// Middleware
-	e.Use(middleware.Logger())
-	e.Use(middleware.Recover())
+	e.Use(s.RequestResponseInfoMiddleware)
 
 	e.POST("/update/:type/:name/:value", s.UpdateHandler)
 	e.GET("/value/:type/:name", s.ValueHandler)
 	e.GET("/", s.ListHandler)
 
 	e.Renderer = t
+	return e
+}
+
+func (s *HTTPServer) Run() error {
+
+	e := s.ConfigureRoutes("web/template")
 
 	server := http.Server{
 		Addr:    s.Address,
