@@ -12,13 +12,6 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// type Metrics struct {
-// 	ID    string   `json:"id"`              // имя метрики
-// 	MType string   `json:"type"`            // параметр, принимающий значение gauge или counter
-// 	Delta *int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
-// 	Value *float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
-// }
-
 func (s *HTTPServer) updateMetric(metricType string, metricName string, metricValue interface{}) (metric.Metric, error) {
 
 	m, err := s.Storage.Retrieve(metric.MetricType(metricType), metricName)
@@ -47,6 +40,28 @@ func (s *HTTPServer) updateMetric(metricType string, metricName string, metricVa
 // curl -v -X POST 'http://localhost:8080/update/' -H "Content-Type: application/json" -d '{"id":"g22","type":"gauge","value":123.12}'
 // curl -v -X POST 'http://localhost:8080/update/' -H "Content-Type: application/json" -d '{"id":"c33","type":"counter","delta":3}'
 
+func (s *HTTPServer) fillValue(m metric.Metric, r *dto.Metrics) error {
+	switch m.GetType() {
+	case metric.MetricTypeCounter:
+		int64Val, ok := m.GetValue().(int64)
+		if ok {
+			r.Delta = &int64Val
+		} else {
+			return ErrorTypeConversion
+		}
+	case metric.MetricTypeGauge:
+		float64Val, ok := m.GetValue().(float64)
+		if ok {
+			r.Value = &float64Val
+		} else {
+			return ErrorTypeConversion
+		}
+	default:
+		return metric.ErrorInvalidMetricType
+	}
+	return nil
+}
+
 func (s *HTTPServer) UpdateJSONHandler(c echo.Context) error {
 
 	mDTO := new(dto.Metrics)
@@ -54,17 +69,15 @@ func (s *HTTPServer) UpdateJSONHandler(c echo.Context) error {
 		return c.String(http.StatusBadRequest, "bad request")
 	}
 
-	metricType := mDTO.MType
-	metricName := mDTO.ID
-
 	var metricValue interface{}
-	switch metricType {
-	case string(metric.MetricTypeCounter):
+
+	switch metric.MetricType(mDTO.MType) {
+	case metric.MetricTypeCounter:
 		if mDTO.Delta == nil {
 			return c.String(http.StatusBadRequest, "bad request")
 		}
 		metricValue = *mDTO.Delta
-	case string(metric.MetricTypeGauge):
+	case metric.MetricTypeGauge:
 		if mDTO.Value == nil {
 			return c.String(http.StatusBadRequest, "bad request")
 		}
@@ -75,7 +88,7 @@ func (s *HTTPServer) UpdateJSONHandler(c echo.Context) error {
 
 	//s.Logger.Info(fmt.Sprintf("update %s %s %v", metricType, metricName, metricValue))
 
-	m, err := s.updateMetric(metricType, metricName, metricValue)
+	m, err := s.updateMetric(mDTO.MType, mDTO.ID, metricValue)
 
 	if err != nil {
 
@@ -88,17 +101,10 @@ func (s *HTTPServer) UpdateJSONHandler(c echo.Context) error {
 		}
 	}
 
-	val, ok := m.GetValue().(int64)
-	if ok {
-		float64Val := float64(val)
-		mDTO.Value = &float64Val
-	} else {
-		val, ok := m.GetValue().(float64)
-		if ok {
-			mDTO.Value = &val
-		} else {
-			return c.String(http.StatusInternalServerError, err.Error())
-		}
+	err = s.fillValue(m, mDTO)
+
+	if err != nil {
+		return c.String(http.StatusInternalServerError, err.Error())
 	}
 
 	// // if everything is correct and metric was saved
@@ -144,20 +150,11 @@ func (s *HTTPServer) ValueJSONHandler(c echo.Context) error {
 		return c.String(http.StatusNotFound, err.Error())
 	}
 
-	val, ok := m.GetValue().(int64)
-	if ok {
-		//float64Val := float64(val)
-		mDTO.Delta = &val
-	} else {
-		val, ok := m.GetValue().(float64)
-		if ok {
-			mDTO.Value = &val
-		} else {
-			return c.String(http.StatusInternalServerError, err.Error())
-		}
-	}
+	err = s.fillValue(m, mDTO)
 
-	//s.Logger.Info(fmt.Sprintf("value %s %s %v", metricType, metricName, mDTO))
+	if err != nil {
+		return c.String(http.StatusInternalServerError, err.Error())
+	}
 
 	return c.JSON(http.StatusOK, mDTO)
 }
