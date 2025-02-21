@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"net/http"
@@ -9,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dmitrijs2005/metric-alerting-service/internal/dto"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
 )
 
@@ -69,29 +72,56 @@ func (a *MetricAgent) updateCounter(metricName string, metricValue int64) {
 func (a *MetricAgent) SendMetric(m metric.Metric, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	v := fmt.Sprintf("%v", m.GetValue())
+	//v := fmt.Sprintf("%v", m.GetValue())
 
 	url := a.ServerURL
 	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
 		url = "http://" + url
 	}
 
-	url = fmt.Sprintf("%s/update/%s/%s/%s", url, m.GetType(), m.GetName(), v)
+	data := &dto.Metrics{ID: m.GetName(), MType: string(m.GetType())}
 
-	request, err := http.NewRequest(http.MethodPost, url, nil)
-	if err != nil {
-		panic(err)
+	if m.GetType() == metric.MetricTypeCounter {
+		v, ok := m.GetValue().(int64)
+		if ok {
+			data.Delta = &v
+		} else {
+			panic(ErrorTypeConversion)
+		}
+	} else if m.GetType() == metric.MetricTypeGauge {
+		v, ok := m.GetValue().(float64)
+		if ok {
+			data.Value = &v
+		} else {
+			panic(ErrorTypeConversion)
+		}
 	}
-	// в заголовках запроса указываем кодировку
-	request.Header.Add("Content-Type", "text/plain")
 
-	// Perform the request
-	resp, err := a.HTTPClient.Do(request)
+	// Convert the data to JSON
+	jsonData, err := json.Marshal(data)
 	if err != nil {
-		fmt.Printf("Error making request: %v\n", err)
+		panic(ErrorMarshallingJson)
+	}
+
+	url = fmt.Sprintf("%s/update/", url)
+
+	// Create a new HTTP request
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		fmt.Println("Error creating request:", err)
 		return
 	}
 
+	// Set the content type to application/json
+	req.Header.Set("Content-Type", "application/json")
+
+	// Send the request using the default HTTP client
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println("Error sending request:", err)
+		return
+	}
 	defer resp.Body.Close()
 
 }

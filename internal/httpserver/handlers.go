@@ -60,12 +60,20 @@ func (s *HTTPServer) UpdateJSONHandler(c echo.Context) error {
 	var metricValue interface{}
 	switch metricType {
 	case string(metric.MetricTypeCounter):
+		if mDTO.Delta == nil {
+			return c.String(http.StatusBadRequest, "bad request")
+		}
 		metricValue = *mDTO.Delta
 	case string(metric.MetricTypeGauge):
+		if mDTO.Value == nil {
+			return c.String(http.StatusBadRequest, "bad request")
+		}
 		metricValue = *mDTO.Value
 	default:
 		return c.String(http.StatusBadRequest, metric.ErrorInvalidMetricType.Error())
 	}
+
+	//s.Logger.Info(fmt.Sprintf("update %s %s %v", metricType, metricName, metricValue))
 
 	m, err := s.updateMetric(metricType, metricName, metricValue)
 
@@ -138,8 +146,8 @@ func (s *HTTPServer) ValueJSONHandler(c echo.Context) error {
 
 	val, ok := m.GetValue().(int64)
 	if ok {
-		float64Val := float64(val)
-		mDTO.Value = &float64Val
+		//float64Val := float64(val)
+		mDTO.Delta = &val
 	} else {
 		val, ok := m.GetValue().(float64)
 		if ok {
@@ -148,6 +156,8 @@ func (s *HTTPServer) ValueJSONHandler(c echo.Context) error {
 			return c.String(http.StatusInternalServerError, err.Error())
 		}
 	}
+
+	//s.Logger.Info(fmt.Sprintf("value %s %s %v", metricType, metricName, mDTO))
 
 	return c.JSON(http.StatusOK, mDTO)
 }
