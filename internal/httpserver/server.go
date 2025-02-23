@@ -50,6 +50,7 @@ func (s *HTTPServer) ConfigureRoutes(templatePath string) *echo.Echo {
 	e := echo.New()
 
 	e.Use(s.RequestResponseInfoMiddleware)
+	e.Use(s.CompressingMiddleware)
 
 	e.POST("/value/", s.ValueJSONHandler)
 	e.POST("/update/", s.UpdateJSONHandler)
