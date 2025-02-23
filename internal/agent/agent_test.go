@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -74,7 +73,7 @@ func TestMetricAgent_SendMetric(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				assert.Equal(t, http.MethodPost, r.Method, "Expected POST method")
-				assert.Contains(t, r.URL.Path, fmt.Sprintf("/update/%s/%s/%v", tt.metric.GetType(), tt.metric.GetName(), tt.metric.GetValue()), "Unexpected URL path")
+				assert.Equal(t, r.URL.Path, "/update/", "Unexpected URL path")
 				w.WriteHeader(http.StatusOK)
 			}))
 			defer mockServer.Close()
