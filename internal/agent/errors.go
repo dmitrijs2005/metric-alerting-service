@@ -3,6 +3,6 @@ package agent
 import "errors"
 
 var (
-	ErrorTypeConversion  = errors.New("Type conversion error")
-	ErrorMarshallingJson = errors.New("Error marshaling JSON")
+	ErrorTypeConversion  = errors.New("type conversion error")
+	ErrorMarshallingJSON = errors.New("error marshaling json")
 )

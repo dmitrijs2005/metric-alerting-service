@@ -100,7 +100,7 @@ func (a *MetricAgent) SendMetric(m metric.Metric, wg *sync.WaitGroup) {
 	// Convert the data to JSON
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		panic(ErrorMarshallingJson)
+		panic(ErrorMarshallingJSON)
 	}
 
 	url = fmt.Sprintf("%s/update/", url)
