@@ -4,7 +4,6 @@ import (
 	"compress/gzip"
 	"io"
 	"net/http"
-	"strings"
 )
 
 type HeaderProvider interface {
@@ -22,16 +21,7 @@ func (w *GzipWriter) Write(b []byte) (int, error) {
 	// if content type not compressable, do nothing
 	ct := w.HeaderProvider.Header().Get("Content-Type")
 
-	if ct == "application/json" || strings.HasPrefix(ct, "text/html") {
-
-		// Always set the headers you need before writing.
-		// hdr := w.ResponseWriter.Header()
-		// hdr.Set("Content-Encoding", "gzip")
-		// hdr.Set("Content-Type", "application/json")
-		// hdr.Set("Vary", "Accept-Encoding")
-
-		//fmt.Println(w.Header())
-
+	if ContentTypeIsCompressable(ct) {
 		return w.Writer.Write(b)
 	}
 

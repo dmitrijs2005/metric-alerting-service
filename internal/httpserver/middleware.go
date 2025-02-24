@@ -54,7 +54,10 @@ func (s *HTTPServer) CompressingMiddleware(next echo.HandlerFunc) echo.HandlerFu
 
 			resp.Before(func() {
 
-				if c.Response().Status < 300 {
+				resp := c.Response()
+				ct := resp.Header().Get("Content-Type")
+
+				if resp.Status < 300 && ContentTypeIsCompressable(ct) {
 					hdr := c.Response().Header()
 					hdr.Set("Content-Encoding", "gzip")
 				}
