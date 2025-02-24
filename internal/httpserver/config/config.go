@@ -3,7 +3,10 @@ package config
 //var config Config
 
 type Config struct {
-	EndpointAddr string
+	EndpointAddr    string
+	StoreInterval   int
+	FileStoragePath string
+	Restore         bool
 }
 
 func LoadConfig() *Config {
