@@ -9,14 +9,14 @@ import (
 
 func main() {
 
-	//adress := ":8080"
-	stor := storage.NewMemStorage()
-
 	cfg := config.LoadConfig()
+
+	stor := storage.NewMemStorage()
+	saver := storage.NewFileSaver(cfg.FileStoragePath)
 
 	log := logger.GetLogger()
 	defer logger.Sync()
 
-	s := httpserver.NewHTTPServer(cfg.EndpointAddr, stor, log)
+	s := httpserver.NewHTTPServer(cfg.EndpointAddr, cfg.StoreInterval, cfg.Restore, stor, saver, log)
 	s.Run()
 }

@@ -26,8 +26,12 @@ func CreateBufferedLogger(buf *bytes.Buffer) *zap.SugaredLogger {
 }
 
 func TestHTTPServer_RequestResponseInfoMiddleware(t *testing.T) {
-	a := "http://localhost:8080"
-	s := storage.NewMemStorage()
+	address := "http://localhost:8080"
+	stor := storage.NewMemStorage()
+	fileStorePath := "/tmp/tmp"
+	saver := storage.NewFileSaver(fileStorePath)
+	sstoreInterval := 20
+	restore := true
 
 	buf := new(bytes.Buffer) // ✅ Initialize buffer
 	log := CreateBufferedLogger(buf)
@@ -44,7 +48,7 @@ func TestHTTPServer_RequestResponseInfoMiddleware(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			s := NewHTTPServer(a, s, log)
+			s := NewHTTPServer(address, sstoreInterval, restore, stor, saver, log)
 			e := s.ConfigureRoutes("../../web/template")
 
 			request := httptest.NewRequest(tt.method, tt.url, nil)

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"os"
+	"os/signal"
 
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
 	"github.com/labstack/echo/v4"
@@ -13,16 +15,22 @@ import (
 )
 
 type HTTPServer struct {
-	Address string
-	Storage storage.Storage
-	Logger  *zap.SugaredLogger
+	Address       string
+	StoreInterval int
+	Restore       bool
+	Storage       storage.Storage
+	Saver         storage.DumpSaver
+	Logger        *zap.SugaredLogger
 }
 
-func NewHTTPServer(address string, storage storage.Storage, logger *zap.SugaredLogger) *HTTPServer {
-	return &HTTPServer{Address: address, Storage: storage, Logger: logger}
+func NewHTTPServer(address string, storeInterval int, restore bool,
+	storage storage.Storage, saver storage.DumpSaver, logger *zap.SugaredLogger) *HTTPServer {
+
+	return &HTTPServer{Address: address, StoreInterval: storeInterval, Restore: restore,
+		Storage: storage, Saver: saver, Logger: logger}
 }
 
-// Сервер должен быть доступен по адресу http://localhost:8080, а также:
+// Сервер должен быть доступен по адресу http://localhost:8080, а также	:
 // Принимать и хранить произвольные метрики двух типов:
 // Тип gauge, float64 — новое значение должно замещать предыдущее.
 // Тип counter, int64 — новое значение должно добавляться к предыдущему, если какое-то значение уже было известно серверу.
@@ -64,14 +72,41 @@ func (s *HTTPServer) ConfigureRoutes(templatePath string) *echo.Echo {
 
 func (s *HTTPServer) Run() error {
 
+	// restoring data from dump
+	if s.Restore {
+		err := s.Saver.RestoreDump(s.Storage)
+		if err != nil {
+			s.Logger.Error(err.Error())
+		} else {
+			s.Logger.Info("Dump restored successfully")
+		}
+	}
+
 	e := s.ConfigureRoutes("web/template")
 
 	server := http.Server{
 		Addr:    s.Address,
 		Handler: e,
 	}
-	if err := server.ListenAndServe(); err != http.ErrServerClosed {
-		log.Fatal(err)
+
+	go func() {
+		if err := server.ListenAndServe(); err != http.ErrServerClosed {
+			log.Fatal(err)
+		}
+	}()
+
+	// Set up channel on which to send signal notifications.
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt)
+	<-quit // Wait for interrupt signal
+	fmt.Println("Received shutdown signal")
+
+	err := s.Saver.SaveDump(s.Storage)
+
+	if err != nil {
+		s.Logger.Error(err)
+	} else {
+		s.Logger.Info("Dump restored successfully")
 	}
 
 	return nil

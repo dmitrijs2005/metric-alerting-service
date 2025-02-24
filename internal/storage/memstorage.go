@@ -68,3 +68,19 @@ func (s *MemStorage) Update(metric metric.Metric, value interface{}) error {
 
 	return metric.Update(value)
 }
+
+func (s *MemStorage) SaveDump() error {
+
+	// s.mu.Lock()
+	// defer s.mu.Unlock()
+
+	return nil
+}
+
+func (s *MemStorage) RestoreDump() error {
+
+	// s.mu.Lock()
+	// defer s.mu.Unlock()
+
+	return nil
+}
