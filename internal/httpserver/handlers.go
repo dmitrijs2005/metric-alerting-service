@@ -86,8 +86,6 @@ func (s *HTTPServer) UpdateJSONHandler(c echo.Context) error {
 		return c.String(http.StatusBadRequest, metric.ErrorInvalidMetricType.Error())
 	}
 
-	//s.Logger.Info(fmt.Sprintf("update %s %s %v", metricType, metricName, metricValue))
-
 	m, err := s.updateMetric(mDTO.MType, mDTO.ID, metricValue)
 
 	if err != nil {

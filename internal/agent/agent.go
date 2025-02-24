@@ -2,6 +2,7 @@ package agent
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -103,10 +104,25 @@ func (a *MetricAgent) SendMetric(m metric.Metric, wg *sync.WaitGroup) {
 		panic(ErrorMarshallingJSON)
 	}
 
+	buf := bytes.NewBuffer(nil)
+	zb := gzip.NewWriter(buf)
+
+	_, err = zb.Write(jsonData)
+	if err != nil {
+		fmt.Println("Error writing to buffer request:", err)
+		return
+	}
+
+	err = zb.Close()
+	if err != nil {
+		fmt.Println("Error closing buffer:", err)
+		return
+	}
+
 	url = fmt.Sprintf("%s/update/", url)
 
 	// Create a new HTTP request
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	req, err := http.NewRequest("POST", url, buf)
 	if err != nil {
 		fmt.Println("Error creating request:", err)
 		return
@@ -114,6 +130,7 @@ func (a *MetricAgent) SendMetric(m metric.Metric, wg *sync.WaitGroup) {
 
 	// Set the content type to application/json
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Encoding", "gzip")
 
 	// Send the request using the default HTTP client
 	client := &http.Client{}

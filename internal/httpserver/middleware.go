@@ -1,9 +1,7 @@
 package httpserver
 
 import (
-	"compress/gzip"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -31,53 +29,55 @@ func (s *HTTPServer) RequestResponseInfoMiddleware(next echo.HandlerFunc) echo.H
 	}
 }
 
-type gzipWriter struct {
-	http.ResponseWriter
-	Writer   io.Writer
-	Response *echo.Response
-}
-
-func (w gzipWriter) Write(b []byte) (int, error) {
-	// w.Writer будет отвечать за gzip-сжатие, поэтому пишем в него
-	// if content type not compressable, do nothing
-
-	ct := w.Response.Header().Get("Content-Type")
-
-	if ct == "application/json" || strings.HasPrefix(ct, "text/html") {
-		// write compressed response
-		w.Header().Set("Content-Encoding", "gzip")
-		return w.Writer.Write(b)
-	}
-
-	// write uncompressed response
-	return w.ResponseWriter.Write(b)
-
-}
-
 func (s *HTTPServer) CompressingMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
 
 		req := c.Request()
 		resp := c.Response()
 
+		w := resp.Writer
+
 		// if gzip is not supported, do nothing
+		//&& (req.URL.Path == "/update/" || req.URL.Path == "/")
 		if strings.Contains(req.Header.Get("Accept-Encoding"), "gzip") {
-			w := resp.Writer
 
 			// создаём gzip.Writer поверх текущего w
-			gz, err := gzip.NewWriterLevel(w, gzip.BestSpeed)
+			gw, err := NewGzipWriter(w, resp)
+
 			if err != nil {
-				io.WriteString(w, err.Error())
+				w.WriteHeader(http.StatusInternalServerError)
 				return nil
 			}
-			defer gz.Close()
 
-			resp.Writer = &gzipWriter{
-				Writer:         gz,
-				ResponseWriter: w,
-				Response:       resp,
+			resp.Writer = gw
+			defer gw.Close()
+
+			resp.Before(func() {
+
+				if c.Response().Status < 300 {
+					hdr := c.Response().Header()
+					hdr.Set("Content-Encoding", "gzip")
+				}
+			})
+		}
+
+		// проверяем, что клиент отправил серверу сжатые данные в формате gzip
+		ce := req.Header.Get("Content-Encoding")
+		sendsGzip := strings.Contains(ce, "gzip")
+
+		if sendsGzip {
+
+			// оборачиваем тело запроса в io.Reader с поддержкой декомпрессии
+			r, err := NewGzipReader(req.Body)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return nil
 			}
 
+			req.Body = r
+			req.Header.Del("Content-Encoding")
+
+			defer r.Close()
 		}
 
 		if err := next(c); err != nil {

@@ -91,5 +91,4 @@ func TestMetricAgent_SendMetric(t *testing.T) {
 			wg.Wait()
 		})
 	}
-
 }
