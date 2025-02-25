@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"net/http"
 
+	"github.com/dmitrijs2005/metric-alerting-service/internal/dumpsaver"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
@@ -17,7 +18,7 @@ type HTTPServer struct {
 	StoreInterval int
 	Restore       bool
 	Storage       storage.Storage
-	Saver         storage.DumpSaver
+	Saver         dumpsaver.DumpSaver
 	logger        *zap.SugaredLogger
 }
 

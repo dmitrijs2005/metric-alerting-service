@@ -13,8 +13,3 @@ type Storage interface {
 	Retrieve(m metric.MetricType, n string) (metric.Metric, error)
 	RetrieveAll() ([]metric.Metric, error)
 }
-
-type DumpSaver interface {
-	SaveDump(s Storage) error
-	RestoreDump(s Storage) error
-}
