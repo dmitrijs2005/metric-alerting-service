@@ -2,7 +2,6 @@ package config
 
 import (
 	"flag"
-	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -30,8 +29,6 @@ func TestParseFlags(t *testing.T) {
 			flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.PanicOnError)
 
 			os.Args = tt.args
-
-			fmt.Println(os.Args)
 
 			config := &Config{}
 
