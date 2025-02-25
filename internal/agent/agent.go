@@ -163,48 +163,58 @@ func (a *MetricAgent) RunReport(wg *sync.WaitGroup) {
 
 }
 
+// collectMemStats собирает статистику памяти.
+func (a *MetricAgent) collectMemStats() *runtime.MemStats {
+	ms := &runtime.MemStats{}
+	runtime.ReadMemStats(ms)
+	return ms
+}
+
+// updateMemStats обновляет метрики, связанные с runtime.MemStats.
+func (a *MetricAgent) updateMemStats(ms *runtime.MemStats) {
+	a.updateGauge("Alloc", float64(ms.Alloc))
+	a.updateGauge("BuckHashSys", float64(ms.BuckHashSys))
+	a.updateGauge("Frees", float64(ms.Frees))
+	a.updateGauge("GCCPUFraction", float64(ms.GCCPUFraction))
+	a.updateGauge("GCSys", float64(ms.GCSys))
+	a.updateGauge("HeapAlloc", float64(ms.HeapAlloc))
+	a.updateGauge("HeapIdle", float64(ms.HeapIdle))
+	a.updateGauge("HeapInuse", float64(ms.HeapInuse))
+	a.updateGauge("HeapObjects", float64(ms.HeapObjects))
+	a.updateGauge("HeapReleased", float64(ms.HeapReleased))
+	a.updateGauge("HeapSys", float64(ms.HeapSys))
+	a.updateGauge("LastGC", float64(ms.LastGC))
+	a.updateGauge("Lookups", float64(ms.Lookups))
+	a.updateGauge("MCacheInuse", float64(ms.MCacheInuse))
+	a.updateGauge("MCacheSys", float64(ms.MCacheSys))
+	a.updateGauge("MSpanInuse", float64(ms.MSpanInuse))
+	a.updateGauge("MSpanSys", float64(ms.MSpanSys))
+	a.updateGauge("Mallocs", float64(ms.Mallocs))
+	a.updateGauge("NextGC", float64(ms.NextGC))
+	a.updateGauge("NumForcedGC", float64(ms.NumForcedGC))
+	a.updateGauge("NumGC", float64(ms.NumGC))
+	a.updateGauge("OtherSys", float64(ms.OtherSys))
+	a.updateGauge("PauseTotalNs", float64(ms.PauseTotalNs))
+	a.updateGauge("StackInuse", float64(ms.StackInuse))
+	a.updateGauge("StackSys", float64(ms.StackSys))
+	a.updateGauge("Sys", float64(ms.Sys))
+	a.updateGauge("TotalAlloc", float64(ms.TotalAlloc))
+}
+
+// updateAdditionalMetrics обновляет дополнительные метрики.
+func (a *MetricAgent) updateAdditionalMetrics() {
+	a.updateGauge("RandomValue", rand.Float64())
+	a.updateCounter("PollCount", 1)
+}
+
 func (a *MetricAgent) RunPoll(wg *sync.WaitGroup) {
 
 	defer wg.Done()
 
 	for {
-
-		//fmt.Println("Updating metrics...")
-
-		ms := &runtime.MemStats{}
-		runtime.ReadMemStats(ms)
-
-		a.updateGauge("Alloc", float64(ms.Alloc))
-		a.updateGauge("BuckHashSys", float64(ms.BuckHashSys))
-		a.updateGauge("Frees", float64(ms.Frees))
-		a.updateGauge("GCCPUFraction", float64(ms.GCCPUFraction))
-		a.updateGauge("GCSys", float64(ms.GCSys))
-		a.updateGauge("HeapAlloc", float64(ms.HeapAlloc))
-		a.updateGauge("HeapIdle", float64(ms.HeapIdle))
-		a.updateGauge("HeapInuse", float64(ms.HeapInuse))
-		a.updateGauge("HeapObjects", float64(ms.HeapObjects))
-		a.updateGauge("HeapReleased", float64(ms.HeapReleased))
-		a.updateGauge("HeapSys", float64(ms.HeapSys))
-		a.updateGauge("LastGC", float64(ms.LastGC))
-		a.updateGauge("Lookups", float64(ms.Lookups))
-		a.updateGauge("MCacheInuse", float64(ms.MCacheInuse))
-		a.updateGauge("MCacheSys", float64(ms.MCacheSys))
-		a.updateGauge("MSpanInuse", float64(ms.MSpanInuse))
-		a.updateGauge("MSpanSys", float64(ms.MSpanSys))
-		a.updateGauge("Mallocs", float64(ms.Mallocs))
-		a.updateGauge("NextGC", float64(ms.NextGC))
-		a.updateGauge("NumForcedGC", float64(ms.NumForcedGC))
-		a.updateGauge("NumGC", float64(ms.NumGC))
-		a.updateGauge("OtherSys", float64(ms.OtherSys))
-		a.updateGauge("PauseTotalNs", float64(ms.PauseTotalNs))
-		a.updateGauge("StackInuse", float64(ms.StackInuse))
-		a.updateGauge("StackSys", float64(ms.StackSys))
-		a.updateGauge("Sys", float64(ms.Sys))
-		a.updateGauge("TotalAlloc", float64(ms.TotalAlloc))
-
-		a.updateGauge("RandomValue", rand.Float64())
-		a.updateCounter("PollCount", 1)
-
+		ms := a.collectMemStats()
+		a.updateMemStats(ms)
+		a.updateAdditionalMetrics()
 		time.Sleep(a.PollInterval)
 	}
 }
