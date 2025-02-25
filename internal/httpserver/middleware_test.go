@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -28,10 +29,8 @@ func CreateBufferedLogger(buf *bytes.Buffer) *zap.SugaredLogger {
 func TestHTTPServer_RequestResponseInfoMiddleware(t *testing.T) {
 	address := "http://localhost:8080"
 	stor := storage.NewMemStorage()
-	fileStorePath := "/tmp/tmp"
-	saver := storage.NewFileSaver(fileStorePath)
-	sstoreInterval := 20
-	restore := true
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	defer cancelFunc()
 
 	buf := new(bytes.Buffer) // ✅ Initialize buffer
 	log := CreateBufferedLogger(buf)
@@ -48,7 +47,7 @@ func TestHTTPServer_RequestResponseInfoMiddleware(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			s := NewHTTPServer(address, sstoreInterval, restore, stor, saver, log)
+			s := NewHTTPServer(ctx, address, stor, log)
 			e := s.ConfigureRoutes("../../web/template")
 
 			request := httptest.NewRequest(tt.method, tt.url, nil)

@@ -25,6 +25,5 @@ require (
 	github.com/google/go-cmp v0.6.0
 	github.com/labstack/echo/v4 v4.13.3
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/sirupsen/logrus v1.9.3
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

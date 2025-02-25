@@ -23,7 +23,7 @@ func (s *HTTPServer) RequestResponseInfoMiddleware(next echo.HandlerFunc) echo.H
 		req := c.Request()
 		resp := c.Response()
 
-		s.Logger.Info(fmt.Sprintf("%s %s %s %d %d", req.URL, req.Method, timeTaken, resp.Status, resp.Size))
+		s.logger.Info(fmt.Sprintf("%s %s %s %d %d", req.URL, req.Method, timeTaken, resp.Status, resp.Size))
 
 		return nil
 	}

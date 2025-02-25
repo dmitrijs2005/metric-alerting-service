@@ -1,4 +1,4 @@
-package storage
+package dumpsaver
 
 import (
 	"bufio"
@@ -7,19 +7,17 @@ import (
 	"strings"
 
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
 )
-
-// type FileSaver interface {
-// 	Save(s Storage) error
-// 	Restore(s Storage) error
-// }
 
 type FileSaver struct {
 	FileStoragePath string
+	Storage         storage.Storage
 }
 
-func (fs *FileSaver) SaveDump(s Storage) error {
-	x, err := s.RetrieveAll()
+func (fs *FileSaver) SaveDump() error {
+
+	x, err := fs.Storage.RetrieveAll()
 
 	if err != nil {
 		return err
@@ -38,15 +36,11 @@ func (fs *FileSaver) SaveDump(s Storage) error {
 		return fmt.Errorf("error opening file: %s", err.Error())
 	}
 
-	fmt.Println(dump)
-
-	n, err := f.Write([]byte(dump))
+	_, err = f.Write([]byte(dump))
 
 	if err != nil {
 		return fmt.Errorf("error writing file: %s", err.Error())
 	}
-
-	fmt.Println(n)
 
 	err = f.Close()
 
@@ -57,7 +51,7 @@ func (fs *FileSaver) SaveDump(s Storage) error {
 	return nil
 }
 
-func (fs *FileSaver) RestoreDump(s Storage) error {
+func (fs *FileSaver) RestoreDump() error {
 
 	// Open the file for reading.
 	file, err := os.Open(fs.FileStoragePath)
@@ -84,12 +78,12 @@ func (fs *FileSaver) RestoreDump(s Storage) error {
 			return fmt.Errorf("error creating metric: %s", err.Error())
 		}
 
-		err = s.Add(m)
+		err = fs.Storage.Add(m)
 		if err != nil {
 			return fmt.Errorf("error adding metric: %s", err.Error())
 		}
 
-		s.Update(m, metricValue)
+		fs.Storage.Update(m, metricValue)
 
 	}
 
@@ -101,6 +95,6 @@ func (fs *FileSaver) RestoreDump(s Storage) error {
 	return nil
 }
 
-func NewFileSaver(fileStoragePath string) *FileSaver {
-	return &FileSaver{fileStoragePath}
+func NewFileSaver(fileStoragePath string, storage storage.Storage) *FileSaver {
+	return &FileSaver{fileStoragePath, storage}
 }
