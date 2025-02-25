@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 )
@@ -18,9 +19,9 @@ func TestParseEnv(t *testing.T) {
 		restore         string
 		expected        *Config
 	}{
-		{"Test1 ip:port", "127.0.0.1:9090", "30", "/tmp/save.sav", "true", &Config{"127.0.0.1:9090", 30, "/tmp/save.sav", true}},
-		{"Test1 :port", ":8080", "25", "/tmp/save2.sav", "false", &Config{":8080", 25, "/tmp/save2.sav", false}}, // Default value
-		{"Test1 empty string", "", "25", "/tmp/save2.sav", "false", &Config{"", 25, "/tmp/save2.sav", false}},    // Edge case: empty value
+		{"Test1 ip:port", "127.0.0.1:9090", "30", "/tmp/save.sav", "true", &Config{"127.0.0.1:9090", 30 * time.Second, "/tmp/save.sav", true}},
+		{"Test1 :port", ":8080", "25", "/tmp/save2.sav", "false", &Config{":8080", 25 * time.Second, "/tmp/save2.sav", false}}, // Default value
+		{"Test1 empty string", "", "25", "/tmp/save2.sav", "false", &Config{"", 25 * time.Second, "/tmp/save2.sav", false}},    // Edge case: empty value
 	}
 
 	for _, tt := range tests {

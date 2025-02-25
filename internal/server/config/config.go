@@ -1,10 +1,12 @@
 package config
 
+import "time"
+
 //var config Config
 
 type Config struct {
 	EndpointAddr    string
-	StoreInterval   int
+	StoreInterval   time.Duration
 	FileStoragePath string
 	Restore         bool
 }

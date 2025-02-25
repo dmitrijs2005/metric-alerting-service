@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
@@ -19,7 +20,7 @@ func TestParseEnv(t *testing.T) {
 		expectPanic    bool
 		expected       *Config
 	}{
-		{"Test1 OK", "127.0.0.1:9090", "10", "5", false, &Config{"127.0.0.1:9090", 10, 5}},
+		{"Test1 OK", "127.0.0.1:9090", "10", "5", false, &Config{"127.0.0.1:9090", 10 * time.Second, 5 * time.Second}},
 		{"Test2 incorrect report interval", "127.0.0.1:9090", "a", "5", true, &Config{}},
 		{"Test2 incorrect report interval", "127.0.0.1:9090", "20", "a", true, &Config{}},
 	}

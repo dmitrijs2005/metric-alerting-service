@@ -4,6 +4,7 @@ import (
 	"flag"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 )
@@ -17,9 +18,9 @@ func TestParseFlags(t *testing.T) {
 		expected *Config
 	}{
 		{"Test1 iP:port", []string{"cmd", "-a", "127.0.0.1:9090", "-i", "30", "-f", "/tmp/tmp.sav", "-r", "true"},
-			&Config{"127.0.0.1:9090", 30, "/tmp/tmp.sav", true}},
-		{"Test2 :port", []string{"cmd"}, &Config{":8080", 30, "/tmp/tmp.sav", true}},             // Default value
-		{"Test3 empty string", []string{"cmd", "-a", ""}, &Config{"", 30, "/tmp/tmp.sav", true}}, // Edge case: empty value
+			&Config{"127.0.0.1:9090", 30 * time.Second, "/tmp/tmp.sav", true}},
+		{"Test2 :port", []string{"cmd"}, &Config{":8080", 30 * time.Second, "/tmp/tmp.sav", true}},             // Default value
+		{"Test3 empty string", []string{"cmd", "-a", ""}, &Config{"", 30 * time.Second, "/tmp/tmp.sav", true}}, // Edge case: empty value
 	}
 
 	for _, tt := range tests {

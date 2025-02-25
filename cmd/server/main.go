@@ -10,6 +10,6 @@ func main() {
 	log := logger.GetLogger()
 	defer logger.Sync()
 
-	app := server.NewApp(*log)
+	app := server.NewApp(log)
 	app.Run()
 }

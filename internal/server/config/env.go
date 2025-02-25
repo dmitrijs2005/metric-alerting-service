@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"time"
 )
 
 func parseEnv(config *Config) {
@@ -15,7 +16,7 @@ func parseEnv(config *Config) {
 		if err != nil {
 			panic(err)
 		}
-		config.StoreInterval = val
+		config.StoreInterval = time.Duration(val) * time.Second
 	}
 
 	if envVar, ok := os.LookupEnv("FILE_STORAGE_PATH"); ok {

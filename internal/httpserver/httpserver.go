@@ -7,9 +7,9 @@ import (
 	"net/http"
 
 	"github.com/dmitrijs2005/metric-alerting-service/internal/dumpsaver"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/logger"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
 	"github.com/labstack/echo/v4"
-	"go.uber.org/zap"
 )
 
 type HTTPServer struct {
@@ -19,10 +19,10 @@ type HTTPServer struct {
 	Restore       bool
 	Storage       storage.Storage
 	Saver         dumpsaver.DumpSaver
-	logger        *zap.SugaredLogger
+	logger        logger.Logger
 }
 
-func NewHTTPServer(ctx context.Context, address string, storage storage.Storage, logger *zap.SugaredLogger) *HTTPServer {
+func NewHTTPServer(ctx context.Context, address string, storage storage.Storage, logger logger.Logger) *HTTPServer {
 
 	return &HTTPServer{ctx: ctx, Address: address, Storage: storage, logger: logger}
 }
@@ -68,8 +68,9 @@ func (s *HTTPServer) Run() error {
 		}
 	}()
 
+	s.logger.Infow("Starting HTTP server", "address", server.Addr)
+
 	if err := server.ListenAndServe(); err != http.ErrServerClosed {
-		fmt.Println("SERVECLOSED")
 		return err
 	}
 

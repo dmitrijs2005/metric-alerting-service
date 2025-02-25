@@ -10,21 +10,21 @@ import (
 
 	"github.com/dmitrijs2005/metric-alerting-service/internal/dumpsaver"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/httpserver"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/logger"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/server/config"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
-	"go.uber.org/zap"
 )
 
 type App struct {
 	ctx        context.Context
 	config     *config.Config
 	cancelFunc context.CancelFunc
-	logger     *zap.SugaredLogger
+	logger     logger.Logger
 	storage    storage.Storage
 	saver      dumpsaver.DumpSaver
 }
 
-func NewApp(logger zap.SugaredLogger) *App {
+func NewApp(logger logger.Logger) *App {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 
 	config := config.LoadConfig()
@@ -32,7 +32,7 @@ func NewApp(logger zap.SugaredLogger) *App {
 	storage := storage.NewMemStorage()
 	saver := dumpsaver.NewFileSaver(config.FileStoragePath, storage)
 
-	return &App{ctx: ctx, config: config, cancelFunc: cancelFunc, logger: &logger, storage: storage, saver: saver}
+	return &App{ctx: ctx, config: config, cancelFunc: cancelFunc, logger: logger, storage: storage, saver: saver}
 }
 
 func (app *App) Run() {
@@ -45,6 +45,11 @@ func (app *App) Run() {
 		<-sigs
 		app.cancelFunc()
 	}()
+
+	app.logger.Infow("Starting app",
+		"restore", app.config.Restore,
+		"store_interval", app.config.StoreInterval,
+		"file_storage_path", app.config.FileStoragePath)
 
 	// restoring data from dump
 	if app.config.Restore {
@@ -72,7 +77,7 @@ func (app *App) Run() {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			ticker := time.NewTicker(time.Duration(app.config.StoreInterval) * time.Second)
+			ticker := time.NewTicker(app.config.StoreInterval)
 			defer ticker.Stop()
 
 			for {
