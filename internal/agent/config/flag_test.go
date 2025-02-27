@@ -4,6 +4,7 @@ import (
 	"flag"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
@@ -18,7 +19,7 @@ func TestParseFlags(t *testing.T) {
 		expectPanic bool
 		expected    *Config
 	}{
-		{"Test1 OK", []string{"cmd", "-a", "127.0.0.1:9090", "-r", "20", "-p", "5"}, false, &Config{EndpointAddr: "127.0.0.1:9090", ReportInterval: 20, PollInterval: 5}},
+		{"Test1 OK", []string{"cmd", "-a", "127.0.0.1:9090", "-r", "20", "-p", "5"}, false, &Config{EndpointAddr: "127.0.0.1:9090", ReportInterval: 20 * time.Second, PollInterval: 5 * time.Second}},
 		{"Test2 incorrect report interval", []string{"cmd", "-a", "127.0.0.1:9090", "-r", "a", "-p", "5"}, true, &Config{}},
 		{"Test3 incorrect poll interval", []string{"cmd", "-a", "127.0.0.1:9090", "-r", "20", "-p", "a"}, true, &Config{}},
 	}

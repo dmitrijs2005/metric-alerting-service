@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"time"
 )
 
 func parseEnv(config *Config) {
@@ -14,13 +15,13 @@ func parseEnv(config *Config) {
 		if err != nil {
 			panic(err)
 		}
-		config.ReportInterval = val
+		config.ReportInterval = time.Duration(val) * time.Second
 	}
 	if envVar, ok := os.LookupEnv("POLL_INTERVAL"); ok {
 		val, err := strconv.Atoi(envVar)
 		if err != nil {
 			panic(err)
 		}
-		config.PollInterval = val
+		config.PollInterval = time.Duration(val) * time.Second
 	}
 }

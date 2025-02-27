@@ -1,11 +1,11 @@
 package config
 
-//var config Config
+import "time"
 
 type Config struct {
 	EndpointAddr   string
-	ReportInterval int
-	PollInterval   int
+	ReportInterval time.Duration
+	PollInterval   time.Duration
 }
 
 func LoadConfig() *Config {

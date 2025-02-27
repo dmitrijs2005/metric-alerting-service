@@ -1,6 +1,8 @@
 package httpserver
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -8,11 +10,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/labstack/echo/v4"
-	"github.com/stretchr/testify/assert"
-
+	"github.com/dmitrijs2005/metric-alerting-service/internal/dto"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
+	"github.com/labstack/echo/v4"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestHTTPServer_UpdateHandler(t *testing.T) {
@@ -199,4 +201,82 @@ func TestHTTPServer_ListHandler(t *testing.T) {
 		assert.Equal(t, "text/html; charset=UTF-8", rec.Header().Get("Content-Type"))
 	}
 
+}
+
+func TestHTTPServer_ValueJSONHandler(t *testing.T) {
+
+	addr := "http://localhost:8080"
+	stor := storage.NewMemStorage()
+
+	metric1 := &metric.Counter{Name: "counter1", Value: 1}
+	metric2 := &metric.Gauge{Name: "gauge1", Value: 1.234}
+
+	stor.Data["counter|counter1"] = metric1
+	stor.Data["gauge|gauge1"] = metric2
+
+	type want struct {
+		code        int
+		response    *dto.Metrics
+		contentType string
+	}
+	tests := []struct {
+		want   want
+		name   string
+		method string
+		mtype  string
+		mname  string
+		mvalue interface{}
+	}{
+
+		{name: "Counter OK", method: http.MethodPost, mtype: "counter", mname: metric1.Name, mvalue: metric1.Value, want: want{code: 200, response: &dto.Metrics{ID: metric1.Name, Delta: &metric1.Value, MType: "counter"}, contentType: "application/json"}},
+		{name: "Gauge OK", method: http.MethodGet, mtype: "gauge", mname: metric2.Name, mvalue: metric2.Value, want: want{code: 200, response: &dto.Metrics{ID: metric2.Name, Value: &metric2.Value, MType: "gauge"}, contentType: "application/json"}},
+		{name: "Unnown metric", method: http.MethodPost, mtype: "unknown", mname: "", mvalue: 0, want: want{code: 404, response: nil, contentType: "text/plain; charset=UTF-8"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &HTTPServer{
+				Address: addr,
+				Storage: stor,
+			}
+
+			e := echo.New()
+
+			payload := &dto.Metrics{ID: tt.mname, MType: tt.mtype}
+
+			// Marshal the payload to JSON
+			jsonData, err := json.Marshal(payload)
+			if err != nil {
+				t.Fatalf("Failed to marshal JSON: %v", err)
+			}
+
+			request := httptest.NewRequest(tt.method, "/", bytes.NewBuffer(jsonData))
+			request.Header.Set("Content-Type", "application/json")
+
+			rec := httptest.NewRecorder()
+
+			c := e.NewContext(request, rec)
+
+			if assert.NoError(t, s.ValueJSONHandler(c)) {
+				assert.Equal(t, tt.want.code, rec.Code)
+				assert.Equal(t, tt.want.contentType, rec.Header().Get("Content-Type"))
+
+				if rec.Code == http.StatusOK {
+					var response dto.Metrics
+					err := json.Unmarshal(rec.Body.Bytes(), &response)
+
+					assert.NoError(t, err)
+
+					assert.Equal(t, payload.ID, tt.want.response.ID)
+					assert.Equal(t, payload.MType, tt.want.response.MType)
+
+					if tt.mtype == "counter" {
+						assert.Equal(t, tt.mvalue, *tt.want.response.Delta)
+					}
+					if tt.mtype == "gauge" {
+						assert.Equal(t, tt.mvalue, *tt.want.response.Value)
+					}
+				}
+			}
+		})
+	}
 }

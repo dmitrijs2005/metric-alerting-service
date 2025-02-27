@@ -1,0 +1,100 @@
+package dumpsaver
+
+import (
+	"bufio"
+	"fmt"
+	"os"
+	"strings"
+
+	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
+)
+
+type FileSaver struct {
+	FileStoragePath string
+	Storage         storage.Storage
+}
+
+func (fs *FileSaver) SaveDump() error {
+
+	x, err := fs.Storage.RetrieveAll()
+
+	if err != nil {
+		return err
+	}
+
+	dump := ""
+	for _, m := range x {
+		ms := fmt.Sprintf("%s:%s:%v", m.GetName(), m.GetType(), m.GetValue())
+		dump += ms
+		dump += "\n"
+	}
+
+	f, err := os.OpenFile(fs.FileStoragePath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0666)
+
+	if err != nil {
+		return fmt.Errorf("error opening file: %s", err.Error())
+	}
+
+	_, err = f.Write([]byte(dump))
+
+	if err != nil {
+		return fmt.Errorf("error writing file: %s", err.Error())
+	}
+
+	err = f.Close()
+
+	if err != nil {
+		return fmt.Errorf("error closing file: %s", err.Error())
+	}
+
+	return nil
+}
+
+func (fs *FileSaver) RestoreDump() error {
+
+	// Open the file for reading.
+	file, err := os.Open(fs.FileStoragePath)
+	if err != nil {
+		return fmt.Errorf("error opening file: %s", err.Error())
+	}
+	defer file.Close()
+
+	// Create a new Scanner for the file.
+	scanner := bufio.NewScanner(file)
+
+	// Read the file line by line.
+	for scanner.Scan() {
+		line := scanner.Text() // Get the current line.
+		///fmt.Println(line)      // Process the line (here, we just print it).
+
+		parts := strings.Split(line, ":")
+		metricName := parts[0]
+		metricType := parts[1]
+		metricValue := parts[2]
+
+		m, err := metric.NewMetric(metric.MetricType(metricType), metricName)
+		if err != nil {
+			return fmt.Errorf("error creating metric: %s", err.Error())
+		}
+
+		err = fs.Storage.Add(m)
+		if err != nil {
+			return fmt.Errorf("error adding metric: %s", err.Error())
+		}
+
+		fs.Storage.Update(m, metricValue)
+
+	}
+
+	// Check for errors during scanning.
+	if err := scanner.Err(); err != nil {
+		fmt.Println("Error reading file:", err)
+	}
+
+	return nil
+}
+
+func NewFileSaver(fileStoragePath string, storage storage.Storage) *FileSaver {
+	return &FileSaver{fileStoragePath, storage}
+}

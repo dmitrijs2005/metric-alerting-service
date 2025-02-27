@@ -6,10 +6,108 @@ import (
 	"net/http"
 	"sort"
 
+	"github.com/dmitrijs2005/metric-alerting-service/internal/dto"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
 	"github.com/labstack/echo/v4"
 )
+
+func (s *HTTPServer) updateMetric(metricType string, metricName string, metricValue interface{}) (metric.Metric, error) {
+
+	m, err := s.Storage.Retrieve(metric.MetricType(metricType), metricName)
+
+	if m == nil && err.Error() == storage.MetricDoesNotExist {
+		m, err = metric.NewMetric(metric.MetricType(metricType), metricName)
+		if err != nil {
+			return nil, err
+		}
+		err = s.Storage.Add(m)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	err = m.Update(metricValue)
+	if err != nil {
+
+		return nil, err
+	}
+
+	return m, nil
+
+}
+
+// curl -v -X POST 'http://localhost:8080/update/' -H "Content-Type: application/json" -d '{"id":"g22","type":"gauge","value":123.12}'
+// curl -v -X POST 'http://localhost:8080/update/' -H "Content-Type: application/json" -d '{"id":"c33","type":"counter","delta":3}'
+
+func (s *HTTPServer) fillValue(m metric.Metric, r *dto.Metrics) error {
+	switch m.GetType() {
+	case metric.MetricTypeCounter:
+		int64Val, ok := m.GetValue().(int64)
+		if ok {
+			r.Delta = &int64Val
+		} else {
+			return ErrorTypeConversion
+		}
+	case metric.MetricTypeGauge:
+		float64Val, ok := m.GetValue().(float64)
+		if ok {
+			r.Value = &float64Val
+		} else {
+			return ErrorTypeConversion
+		}
+	default:
+		return metric.ErrorInvalidMetricType
+	}
+	return nil
+}
+
+func (s *HTTPServer) UpdateJSONHandler(c echo.Context) error {
+
+	mDTO := new(dto.Metrics)
+	if err := c.Bind(mDTO); err != nil {
+		return c.String(http.StatusBadRequest, "bad request")
+	}
+
+	var metricValue interface{}
+
+	switch metric.MetricType(mDTO.MType) {
+	case metric.MetricTypeCounter:
+		if mDTO.Delta == nil {
+			return c.String(http.StatusBadRequest, "bad request")
+		}
+		metricValue = *mDTO.Delta
+	case metric.MetricTypeGauge:
+		if mDTO.Value == nil {
+			return c.String(http.StatusBadRequest, "bad request")
+		}
+		metricValue = *mDTO.Value
+	default:
+		return c.String(http.StatusBadRequest, metric.ErrorInvalidMetricType.Error())
+	}
+
+	m, err := s.updateMetric(mDTO.MType, mDTO.ID, metricValue)
+
+	if err != nil {
+
+		isBadRequest := errors.Is(err, metric.ErrorInvalidMetricName) || errors.Is(err, metric.ErrorInvalidMetricType) || errors.Is(err, metric.ErrorInvalidMetricValue)
+
+		if isBadRequest {
+			return c.String(http.StatusBadRequest, err.Error())
+		} else {
+			return c.String(http.StatusInternalServerError, err.Error())
+		}
+	}
+
+	err = s.fillValue(m, mDTO)
+
+	if err != nil {
+		return c.String(http.StatusInternalServerError, err.Error())
+	}
+
+	// // if everything is correct and metric was saved
+	return c.JSON(http.StatusOK, mDTO)
+}
 
 func (s *HTTPServer) UpdateHandler(c echo.Context) error {
 
@@ -17,23 +115,13 @@ func (s *HTTPServer) UpdateHandler(c echo.Context) error {
 	metricName := c.Param("name")
 	metricValue := c.Param("value")
 
-	m, err := s.Storage.Retrieve(metric.MetricType(metricType), metricName)
+	_, err := s.updateMetric(metricType, metricName, metricValue)
 
-	if m == nil && err.Error() == storage.MetricDoesNotExist {
-		m, err = metric.NewMetric(metric.MetricType(metricType), metricName)
-		if err != nil {
-			return c.String(http.StatusBadRequest, err.Error())
-		}
-		err = s.Storage.Add(m)
-		if err != nil {
-			return c.String(http.StatusInternalServerError, err.Error())
-		}
-	}
-
-	err = m.Update(metricValue)
 	if err != nil {
 
-		if errors.Is(err, metric.ErrorInvalidMetricValue) {
+		isBadRequest := errors.Is(err, metric.ErrorInvalidMetricName) || errors.Is(err, metric.ErrorInvalidMetricType) || errors.Is(err, metric.ErrorInvalidMetricValue)
+
+		if isBadRequest {
 			return c.String(http.StatusBadRequest, err.Error())
 		} else {
 			return c.String(http.StatusInternalServerError, err.Error())
@@ -42,6 +130,31 @@ func (s *HTTPServer) UpdateHandler(c echo.Context) error {
 
 	// if everything is correct and metric was saved
 	return c.String(http.StatusOK, "OK")
+}
+
+func (s *HTTPServer) ValueJSONHandler(c echo.Context) error {
+
+	mDTO := new(dto.Metrics)
+	if err := c.Bind(mDTO); err != nil {
+		return c.String(http.StatusBadRequest, "bad request")
+	}
+
+	metricType := mDTO.MType
+	metricName := mDTO.ID
+
+	m, err := s.Storage.Retrieve(metric.MetricType(metricType), metricName)
+
+	if m == nil && err.Error() == storage.MetricDoesNotExist {
+		return c.String(http.StatusNotFound, err.Error())
+	}
+
+	err = s.fillValue(m, mDTO)
+
+	if err != nil {
+		return c.String(http.StatusInternalServerError, err.Error())
+	}
+
+	return c.JSON(http.StatusOK, mDTO)
 }
 
 func (s *HTTPServer) ValueHandler(c echo.Context) error {
