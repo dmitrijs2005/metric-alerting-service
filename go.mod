@@ -1,8 +1,8 @@
 module github.com/dmitrijs2005/metric-alerting-service
 
-go 1.23
+go 1.22
 
-toolchain go1.23.7
+toolchain go1.22.11
 
 require (
 	github.com/jackc/pgx/v5 v5.7.2
