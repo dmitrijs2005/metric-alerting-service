@@ -10,6 +10,11 @@ func main() {
 	log := logger.GetLogger()
 	defer logger.Sync()
 
-	app := server.NewApp(log)
+	app, err := server.NewApp(log)
+	if err != nil {
+		log.Errorw(err.Error())
+		return
+	}
+
 	app.Run()
 }

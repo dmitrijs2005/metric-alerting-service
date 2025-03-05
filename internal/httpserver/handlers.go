@@ -185,3 +185,16 @@ func (s *HTTPServer) ListHandler(c echo.Context) error {
 
 	return c.Render(http.StatusOK, "list.html", metrics)
 }
+
+func (s *HTTPServer) PingHandler(c echo.Context) error {
+
+	ctx := c.Request().Context()
+
+	err := s.DBClient.Ping(ctx)
+
+	if err != nil {
+		return c.String(http.StatusInternalServerError, err.Error())
+	}
+
+	return c.String(http.StatusOK, "OK")
+}

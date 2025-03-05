@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"net/http"
 
+	"github.com/dmitrijs2005/metric-alerting-service/internal/db"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/dumpsaver"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/logger"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
@@ -19,12 +20,12 @@ type HTTPServer struct {
 	Restore       bool
 	Storage       storage.Storage
 	Saver         dumpsaver.DumpSaver
+	DBClient      db.DBClient
 	logger        logger.Logger
 }
 
-func NewHTTPServer(ctx context.Context, address string, storage storage.Storage, logger logger.Logger) *HTTPServer {
-
-	return &HTTPServer{ctx: ctx, Address: address, Storage: storage, logger: logger}
+func NewHTTPServer(ctx context.Context, address string, storage storage.Storage, dbClient db.DBClient, logger logger.Logger) *HTTPServer {
+	return &HTTPServer{ctx: ctx, Address: address, Storage: storage, DBClient: dbClient, logger: logger}
 }
 
 func (s *HTTPServer) ConfigureRoutes(templatePath string) *echo.Echo {
@@ -44,6 +45,7 @@ func (s *HTTPServer) ConfigureRoutes(templatePath string) *echo.Echo {
 	e.POST("/update/", s.UpdateJSONHandler)
 	e.POST("/update/:type/:name/:value", s.UpdateHandler)
 	e.GET("/value/:type/:name", s.ValueHandler)
+	e.GET("/ping", s.PingHandler)
 	e.GET("/", s.ListHandler)
 
 	e.Renderer = t

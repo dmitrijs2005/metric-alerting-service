@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/dmitrijs2005/metric-alerting-service/internal/db"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/dumpsaver"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/httpserver"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/logger"
@@ -16,26 +17,26 @@ import (
 )
 
 type App struct {
-	ctx        context.Context
-	config     *config.Config
-	cancelFunc context.CancelFunc
-	logger     logger.Logger
-	storage    storage.Storage
-	saver      dumpsaver.DumpSaver
+	config  *config.Config
+	logger  logger.Logger
+	storage storage.Storage
+	saver   dumpsaver.DumpSaver
 }
 
-func NewApp(logger logger.Logger) *App {
-	ctx, cancelFunc := context.WithCancel(context.Background())
+func NewApp(logger logger.Logger) (*App, error) {
 
 	config := config.LoadConfig()
 
 	storage := storage.NewMemStorage()
+
 	saver := dumpsaver.NewFileSaver(config.FileStoragePath, storage)
 
-	return &App{ctx: ctx, config: config, cancelFunc: cancelFunc, logger: logger, storage: storage, saver: saver}
+	return &App{config: config, logger: logger, storage: storage, saver: saver}, nil
 }
 
 func (app *App) Run() {
+
+	ctx, cancelFunc := context.WithCancel(context.Background())
 
 	// Channel to catch OS signals.
 	sigs := make(chan os.Signal, 1)
@@ -43,13 +44,31 @@ func (app *App) Run() {
 
 	go func() {
 		<-sigs
-		app.cancelFunc()
+		cancelFunc()
 	}()
 
 	app.logger.Infow("Starting app",
 		"restore", app.config.Restore,
 		"store_interval", app.config.StoreInterval,
-		"file_storage_path", app.config.FileStoragePath)
+		"file_storage_path", app.config.FileStoragePath,
+		"database_dsn", app.config.DatabaseDSN,
+	)
+
+	//s := "host=localhost user=postgres password=mysecretpassword sslmode=disable"
+	dbClient, err := db.NewPostgresClient(app.config.DatabaseDSN)
+	defer func() {
+		if err := dbClient.Close(); err != nil {
+			app.logger.Errorw("Error closing database connection:", "err", err)
+		} else {
+			app.logger.Infow("Database closed")
+		}
+
+	}()
+
+	if err != nil {
+		app.logger.Errorw("Error", "err", err)
+		return
+	}
 
 	// restoring data from dump
 	if app.config.Restore {
@@ -66,9 +85,9 @@ func (app *App) Run() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		s := httpserver.NewHTTPServer(app.ctx, app.config.EndpointAddr, app.storage, app.logger)
+		s := httpserver.NewHTTPServer(ctx, app.config.EndpointAddr, app.storage, dbClient, app.logger)
 		if err := s.Run(); err != nil {
-			app.cancelFunc()
+			cancelFunc()
 		}
 	}()
 
@@ -82,11 +101,11 @@ func (app *App) Run() {
 
 			for {
 				select {
-				case <-app.ctx.Done():
+				case <-ctx.Done():
 					app.logger.Info("Background saving task received cancellation signal. Exiting...")
 					return
 				case <-ticker.C:
-					// Place your periodic task logic here.
+					// Periodic task logic
 					app.logger.Info("Performing regular saving task")
 					app.saver.SaveDump()
 				}

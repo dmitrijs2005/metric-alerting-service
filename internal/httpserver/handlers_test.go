@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dmitrijs2005/metric-alerting-service/internal/db"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/dto"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
@@ -279,4 +280,29 @@ func TestHTTPServer_ValueJSONHandler(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHTTPServer_PingHandler(t *testing.T) {
+
+	addr := "http://localhost:8080"
+	stor := storage.NewMemStorage()
+
+	s := &HTTPServer{
+		Address:  addr,
+		Storage:  stor,
+		DBClient: new(db.MockDBClient),
+	}
+
+	e := echo.New()
+
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+
+	c := e.NewContext(request, rec)
+
+	if assert.NoError(t, s.PingHandler(c)) {
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, "OK", rec.Body.String())
+	}
+
 }
