@@ -46,6 +46,9 @@ func (s *MemStorage) RetrieveAll(ctx context.Context) ([]metric.Metric, error) {
 	for _, metric := range s.Data {
 		result = append(result, metric)
 	}
+
+	fmt.Println("sss")
+
 	return result, nil
 }
 

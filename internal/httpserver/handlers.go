@@ -204,9 +204,8 @@ func (s *HTTPServer) ListHandler(c echo.Context) error {
 	ctx := c.Request().Context()
 	metrics, err := s.Storage.RetrieveAll(ctx)
 
-	s.logger.Errorw("Error retrieving metrics", "err", err)
-
 	if err != nil {
+		s.logger.Errorw("Error retrieving metrics", "err", err)
 		return c.String(http.StatusInternalServerError, err.Error())
 	}
 

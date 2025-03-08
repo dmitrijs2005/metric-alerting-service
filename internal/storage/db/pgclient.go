@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
@@ -71,8 +70,6 @@ func (c *PostgresClient) RetrieveAll(ctx context.Context) ([]metric.Metric, erro
 			}
 		}
 
-		fmt.Println(t, n, mvi, mvf)
-
 		m, err := metric.NewMetric(t, n)
 
 		if err != nil {
@@ -80,19 +77,15 @@ func (c *PostgresClient) RetrieveAll(ctx context.Context) ([]metric.Metric, erro
 		}
 
 		if gauge, ok := m.(*metric.Gauge); ok {
-			fmt.Println("111")
 			err := gauge.Update(mvf.Float64)
 			if err != nil {
 				return nil, err
 			}
-			fmt.Println("111", gauge)
 		} else if counter, ok := m.(*metric.Counter); ok {
-			fmt.Println("222")
 			err := counter.Update(mvi.Int64)
 			if err != nil {
 				return nil, err
 			}
-			fmt.Println("222", counter)
 		} else {
 			return nil, metric.ErrorInvalidMetricType
 		}

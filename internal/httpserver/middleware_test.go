@@ -8,8 +8,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/dmitrijs2005/metric-alerting-service/internal/db"
-	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/storage/memory"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -29,14 +28,12 @@ func CreateBufferedLogger(buf *bytes.Buffer) *zap.SugaredLogger {
 
 func TestHTTPServer_RequestResponseInfoMiddleware(t *testing.T) {
 	address := "http://localhost:8080"
-	stor := storage.NewMemStorage()
+	stor := memory.NewMemStorage()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
 
 	buf := new(bytes.Buffer) // ✅ Initialize buffer
 	log := CreateBufferedLogger(buf)
-
-	dbClient := new(db.MockDBClient)
 
 	tests := []struct {
 		name   string
@@ -50,7 +47,7 @@ func TestHTTPServer_RequestResponseInfoMiddleware(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			s := NewHTTPServer(ctx, address, stor, dbClient, log)
+			s := NewHTTPServer(ctx, address, stor, log)
 			e := s.ConfigureRoutes("../../web/template")
 
 			request := httptest.NewRequest(tt.method, tt.url, nil)

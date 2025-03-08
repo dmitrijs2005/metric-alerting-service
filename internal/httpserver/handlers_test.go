@@ -10,10 +10,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dmitrijs2005/metric-alerting-service/internal/db"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/dto"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/storage/db"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/storage/memory"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 )
@@ -21,7 +22,7 @@ import (
 func TestHTTPServer_UpdateHandler(t *testing.T) {
 
 	a := "http://localhost:8080"
-	s := storage.NewMemStorage()
+	s := memory.NewMemStorage()
 
 	type want struct {
 		code        int
@@ -74,7 +75,7 @@ func TestHTTPServer_UpdateHandler(t *testing.T) {
 func TestHTTPServer_UpdateHandler_404_405(t *testing.T) {
 
 	a := "http://localhost:8080"
-	s := storage.NewMemStorage()
+	s := memory.NewMemStorage()
 
 	type want struct {
 		code        int
@@ -116,7 +117,7 @@ func TestHTTPServer_ValueHandler(t *testing.T) {
 	metric2 := &metric.Gauge{Name: "gauge1", Value: 1.234}
 
 	addr := "http://localhost:8080"
-	stor := storage.NewMemStorage()
+	stor := memory.NewMemStorage()
 
 	stor.Data["counter|counter1"] = metric1
 	stor.Data["gauge|gauge1"] = metric2
@@ -171,7 +172,7 @@ func TestHTTPServer_ListHandler(t *testing.T) {
 	metric2 := &metric.Gauge{Name: "gauge1", Value: 1.234}
 
 	addr := "http://localhost:8080"
-	stor := storage.NewMemStorage()
+	stor := memory.NewMemStorage()
 
 	stor.Data["counter|counter1"] = metric1
 	stor.Data["gauge|gauge1"] = metric2
@@ -207,7 +208,7 @@ func TestHTTPServer_ListHandler(t *testing.T) {
 func TestHTTPServer_ValueJSONHandler(t *testing.T) {
 
 	addr := "http://localhost:8080"
-	stor := storage.NewMemStorage()
+	stor := memory.NewMemStorage()
 
 	metric1 := &metric.Counter{Name: "counter1", Value: 1}
 	metric2 := &metric.Gauge{Name: "gauge1", Value: 1.234}
@@ -285,12 +286,11 @@ func TestHTTPServer_ValueJSONHandler(t *testing.T) {
 func TestHTTPServer_PingHandler(t *testing.T) {
 
 	addr := "http://localhost:8080"
-	stor := storage.NewMemStorage()
+	stor := db.NewMockDbClient()
 
 	s := &HTTPServer{
-		Address:  addr,
-		Storage:  stor,
-		DBClient: new(db.MockDBClient),
+		Address: addr,
+		Storage: stor,
 	}
 
 	e := echo.New()
