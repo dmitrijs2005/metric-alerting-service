@@ -6,12 +6,14 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/dmitrijs2005/metric-alerting-service/internal/httpserver"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/logger"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/server/config"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage/db"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/storage/file"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage/memory"
 )
 
@@ -37,7 +39,9 @@ func (app *App) Run() {
 
 	var s storage.Storage
 
-	if app.config.DatabaseDSN == "" {
+	useDb := app.config.DatabaseDSN != ""
+
+	if !useDb {
 		s = memory.NewMemStorage()
 	} else {
 		var err error
@@ -61,7 +65,7 @@ func (app *App) Run() {
 		}()
 	}
 
-	//saver := file.NewFileSaver(app.config.FileStoragePath, s)
+	saver := file.NewFileSaver(app.config.FileStoragePath, s)
 
 	// Channel to catch OS signals.
 	sigs := make(chan os.Signal, 1)
@@ -80,14 +84,14 @@ func (app *App) Run() {
 	)
 
 	// restoring data from dump
-	// if app.config.Restore {
-	// 	err := saver.RestoreDump(ctx)
-	// 	if err != nil {
-	// 		app.logger.Error(err.Error())
-	// 	} else {
-	// 		app.logger.Info("Dump restored successfully!!!")
-	// 	}
-	// }
+	if !useDb && app.config.Restore {
+		err := saver.RestoreDump(ctx)
+		if err != nil {
+			app.logger.Error(err.Error())
+		} else {
+			app.logger.Info("Dump restored successfully!!!")
+		}
+	}
 
 	var wg sync.WaitGroup
 
@@ -100,39 +104,39 @@ func (app *App) Run() {
 		}
 	}()
 
-	// if store interval is not 0, launching regular dump saving task
-	// if app.config.StoreInterval > 0 {
-	// 	wg.Add(1)
-	// 	go func() {
-	// 		defer wg.Done()
-	// 		ticker := time.NewTicker(app.config.StoreInterval)
-	// 		defer ticker.Stop()
+	//if store interval is not 0, launching regular dump saving task
+	if !useDb && app.config.StoreInterval > 0 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ticker := time.NewTicker(app.config.StoreInterval)
+			defer ticker.Stop()
 
-	// 		for {
-	// 			select {
-	// 			case <-ctx.Done():
-	// 				app.logger.Info("Background saving task received cancellation signal. Exiting...")
-	// 				return
-	// 			case <-ticker.C:
-	// 				// Periodic task logic
-	// 				app.logger.Info("Performing regular saving task")
-	// 				saver.SaveDump(ctx)
-	// 			}
-	// 		}
-	// 	}()
-	// }
+			for {
+				select {
+				case <-ctx.Done():
+					app.logger.Info("Background saving task received cancellation signal. Exiting...")
+					return
+				case <-ticker.C:
+					// Periodic task logic
+					app.logger.Info("Performing regular saving task")
+					saver.SaveDump(ctx)
+				}
+			}
+		}()
+	}
 
 	wg.Wait()
 
 	// значение 0 делает запись синхронной
-	// if app.config.StoreInterval == 0 {
-	// 	err := saver.SaveDump(ctx)
+	if !useDb && app.config.StoreInterval == 0 {
+		err := saver.SaveDump(ctx)
 
-	// 	if err != nil {
-	// 		app.logger.Error(err)
-	// 	} else {
-	// 		app.logger.Info("Dump saved successfully")
-	// 	}
-	// }
+		if err != nil {
+			app.logger.Error(err)
+		} else {
+			app.logger.Info("Dump saved successfully")
+		}
+	}
 
 }

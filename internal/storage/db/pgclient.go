@@ -169,6 +169,9 @@ func (c *PostgresClient) Retrieve(ctx context.Context, t metric.MetricType, n st
 	}
 
 	m, err := metric.NewMetric(t, n)
+	if err != nil {
+		return nil, err
+	}
 
 	if gauge, ok := m.(*metric.Gauge); ok {
 		gauge.Update(mvf)
