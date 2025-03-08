@@ -1,6 +1,7 @@
 package httpserver
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -12,25 +13,42 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-func (s *HTTPServer) updateMetric(metricType string, metricName string, metricValue interface{}) (metric.Metric, error) {
+func (s *HTTPServer) updateMetric(ctx context.Context, metricType string, metricName string, metricValue interface{}) (metric.Metric, error) {
 
-	m, err := s.Storage.Retrieve(metric.MetricType(metricType), metricName)
+	m, err := s.Storage.Retrieve(ctx, metric.MetricType(metricType), metricName)
 
-	if m == nil && err.Error() == storage.MetricDoesNotExist {
-		m, err = metric.NewMetric(metric.MetricType(metricType), metricName)
-		if err != nil {
-			return nil, err
-		}
-		err = s.Storage.Add(m)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	err = m.Update(metricValue)
 	if err != nil {
+		if err.Error() != storage.MetricDoesNotExist {
+			return nil, err
+		} else {
+			m, err = metric.NewMetric(metric.MetricType(metricType), metricName)
+			if err != nil {
+				return nil, err
+			}
 
-		return nil, err
+			if gauge, ok := m.(*metric.Gauge); ok {
+				if err := gauge.Update(metricValue); err != nil {
+					return nil, err
+				}
+			} else if counter, ok := m.(*metric.Counter); ok {
+				if err := counter.Update(metricValue); err != nil {
+					return nil, err
+				}
+			} else {
+				return nil, metric.ErrorInvalidMetricType
+			}
+
+			err = s.Storage.Add(ctx, m)
+			if err != nil {
+				return nil, err
+			}
+		}
+	} else {
+		err = s.Storage.Update(ctx, m, metricValue)
+		if err != nil {
+
+			return nil, err
+		}
 	}
 
 	return m, nil
@@ -64,6 +82,8 @@ func (s *HTTPServer) fillValue(m metric.Metric, r *dto.Metrics) error {
 
 func (s *HTTPServer) UpdateJSONHandler(c echo.Context) error {
 
+	ctx := c.Request().Context()
+
 	mDTO := new(dto.Metrics)
 	if err := c.Bind(mDTO); err != nil {
 		return c.String(http.StatusBadRequest, "bad request")
@@ -86,9 +106,11 @@ func (s *HTTPServer) UpdateJSONHandler(c echo.Context) error {
 		return c.String(http.StatusBadRequest, metric.ErrorInvalidMetricType.Error())
 	}
 
-	m, err := s.updateMetric(mDTO.MType, mDTO.ID, metricValue)
+	m, err := s.updateMetric(ctx, mDTO.MType, mDTO.ID, metricValue)
 
 	if err != nil {
+
+		s.logger.Errorw("Error updating metric", "err", err)
 
 		isBadRequest := errors.Is(err, metric.ErrorInvalidMetricName) || errors.Is(err, metric.ErrorInvalidMetricType) || errors.Is(err, metric.ErrorInvalidMetricValue)
 
@@ -111,11 +133,13 @@ func (s *HTTPServer) UpdateJSONHandler(c echo.Context) error {
 
 func (s *HTTPServer) UpdateHandler(c echo.Context) error {
 
+	ctx := c.Request().Context()
+
 	metricType := c.Param("type")
 	metricName := c.Param("name")
 	metricValue := c.Param("value")
 
-	_, err := s.updateMetric(metricType, metricName, metricValue)
+	_, err := s.updateMetric(ctx, metricType, metricName, metricValue)
 
 	if err != nil {
 
@@ -134,6 +158,8 @@ func (s *HTTPServer) UpdateHandler(c echo.Context) error {
 
 func (s *HTTPServer) ValueJSONHandler(c echo.Context) error {
 
+	ctx := c.Request().Context()
+
 	mDTO := new(dto.Metrics)
 	if err := c.Bind(mDTO); err != nil {
 		return c.String(http.StatusBadRequest, "bad request")
@@ -142,7 +168,7 @@ func (s *HTTPServer) ValueJSONHandler(c echo.Context) error {
 	metricType := mDTO.MType
 	metricName := mDTO.ID
 
-	m, err := s.Storage.Retrieve(metric.MetricType(metricType), metricName)
+	m, err := s.Storage.Retrieve(ctx, metric.MetricType(metricType), metricName)
 
 	if m == nil && err.Error() == storage.MetricDoesNotExist {
 		return c.String(http.StatusNotFound, err.Error())
@@ -159,10 +185,12 @@ func (s *HTTPServer) ValueJSONHandler(c echo.Context) error {
 
 func (s *HTTPServer) ValueHandler(c echo.Context) error {
 
+	ctx := c.Request().Context()
+
 	metricType := c.Param("type")
 	metricName := c.Param("name")
 
-	m, err := s.Storage.Retrieve(metric.MetricType(metricType), metricName)
+	m, err := s.Storage.Retrieve(ctx, metric.MetricType(metricType), metricName)
 
 	if m == nil && err.Error() == storage.MetricDoesNotExist {
 		return c.String(http.StatusNotFound, err.Error())
@@ -173,7 +201,10 @@ func (s *HTTPServer) ValueHandler(c echo.Context) error {
 
 func (s *HTTPServer) ListHandler(c echo.Context) error {
 
-	metrics, err := s.Storage.RetrieveAll()
+	ctx := c.Request().Context()
+	metrics, err := s.Storage.RetrieveAll(ctx)
+
+	s.logger.Errorw("Error retrieving metrics", "err", err)
 
 	if err != nil {
 		return c.String(http.StatusInternalServerError, err.Error())
@@ -190,11 +221,17 @@ func (s *HTTPServer) PingHandler(c echo.Context) error {
 
 	ctx := c.Request().Context()
 
-	err := s.DBClient.Ping(ctx)
+	db, ok := s.Storage.(storage.DbStorage)
+	if ok {
+		err := db.Ping(ctx)
 
-	if err != nil {
-		return c.String(http.StatusInternalServerError, err.Error())
+		if err != nil {
+			return c.String(http.StatusInternalServerError, err.Error())
+		}
+
+		return c.String(http.StatusOK, "OK")
 	}
 
-	return c.String(http.StatusOK, "OK")
+	return c.String(http.StatusInternalServerError, ErrorTypeNotImplemented.Error())
+
 }

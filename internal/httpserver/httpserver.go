@@ -6,10 +6,9 @@ import (
 	"html/template"
 	"net/http"
 
-	"github.com/dmitrijs2005/metric-alerting-service/internal/db"
-	"github.com/dmitrijs2005/metric-alerting-service/internal/dumpsaver"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/logger"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/storage/file"
 	"github.com/labstack/echo/v4"
 )
 
@@ -19,13 +18,12 @@ type HTTPServer struct {
 	StoreInterval int
 	Restore       bool
 	Storage       storage.Storage
-	Saver         dumpsaver.DumpSaver
-	DBClient      db.DBClient
+	Saver         file.DumpSaver
 	logger        logger.Logger
 }
 
-func NewHTTPServer(ctx context.Context, address string, storage storage.Storage, dbClient db.DBClient, logger logger.Logger) *HTTPServer {
-	return &HTTPServer{ctx: ctx, Address: address, Storage: storage, DBClient: dbClient, logger: logger}
+func NewHTTPServer(ctx context.Context, address string, storage storage.Storage, logger logger.Logger) *HTTPServer {
+	return &HTTPServer{ctx: ctx, Address: address, Storage: storage, logger: logger}
 }
 
 func (s *HTTPServer) ConfigureRoutes(templatePath string) *echo.Echo {

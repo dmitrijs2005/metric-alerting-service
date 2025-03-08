@@ -1,7 +1,8 @@
-package dumpsaver
+package file
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -15,9 +16,9 @@ type FileSaver struct {
 	Storage         storage.Storage
 }
 
-func (fs *FileSaver) SaveDump() error {
+func (fs *FileSaver) SaveDump(ctx context.Context) error {
 
-	x, err := fs.Storage.RetrieveAll()
+	x, err := fs.Storage.RetrieveAll(ctx)
 
 	if err != nil {
 		return err
@@ -51,7 +52,7 @@ func (fs *FileSaver) SaveDump() error {
 	return nil
 }
 
-func (fs *FileSaver) RestoreDump() error {
+func (fs *FileSaver) RestoreDump(ctx context.Context) error {
 
 	// Open the file for reading.
 	file, err := os.Open(fs.FileStoragePath)
@@ -66,7 +67,6 @@ func (fs *FileSaver) RestoreDump() error {
 	// Read the file line by line.
 	for scanner.Scan() {
 		line := scanner.Text() // Get the current line.
-		///fmt.Println(line)      // Process the line (here, we just print it).
 
 		parts := strings.Split(line, ":")
 		metricName := parts[0]
@@ -78,12 +78,12 @@ func (fs *FileSaver) RestoreDump() error {
 			return fmt.Errorf("error creating metric: %s", err.Error())
 		}
 
-		err = fs.Storage.Add(m)
+		err = fs.Storage.Add(ctx, m)
 		if err != nil {
 			return fmt.Errorf("error adding metric: %s", err.Error())
 		}
 
-		fs.Storage.Update(m, metricValue)
+		fs.Storage.Update(ctx, m, metricValue)
 
 	}
 

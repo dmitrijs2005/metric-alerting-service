@@ -1,4 +1,4 @@
-package storage
+package memory
 
 import (
 	"errors"
@@ -6,6 +6,8 @@ import (
 	"sync"
 
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
+	"golang.org/x/net/context"
 )
 
 type MemStorage struct {
@@ -21,7 +23,7 @@ func NewMemStorage() *MemStorage {
 	return &MemStorage{Data: make(map[string]metric.Metric)}
 }
 
-func (s *MemStorage) Retrieve(metricType metric.MetricType, metricName string) (metric.Metric, error) {
+func (s *MemStorage) Retrieve(ctx context.Context, metricType metric.MetricType, metricName string) (metric.Metric, error) {
 	key := getKey(metricType, metricName)
 
 	s.mu.Lock()
@@ -30,11 +32,11 @@ func (s *MemStorage) Retrieve(metricType metric.MetricType, metricName string) (
 	if value, exists := s.Data[key]; exists {
 		return value, nil
 	} else {
-		return nil, errors.New(MetricDoesNotExist)
+		return nil, errors.New(storage.MetricDoesNotExist)
 	}
 }
 
-func (s *MemStorage) RetrieveAll() ([]metric.Metric, error) {
+func (s *MemStorage) RetrieveAll(ctx context.Context) ([]metric.Metric, error) {
 
 	result := []metric.Metric{}
 
@@ -47,7 +49,7 @@ func (s *MemStorage) RetrieveAll() ([]metric.Metric, error) {
 	return result, nil
 }
 
-func (s *MemStorage) Add(metric metric.Metric) error {
+func (s *MemStorage) Add(ctx context.Context, metric metric.Metric) error {
 	key := getKey(metric.GetType(), metric.GetName())
 
 	s.mu.Lock()
@@ -55,13 +57,13 @@ func (s *MemStorage) Add(metric metric.Metric) error {
 
 	_, exists := s.Data[key]
 	if exists {
-		return errors.New(MetricAlreadyExists)
+		return errors.New(storage.MetricAlreadyExists)
 	}
 	s.Data[key] = metric
 	return nil
 }
 
-func (s *MemStorage) Update(metric metric.Metric, value interface{}) error {
+func (s *MemStorage) Update(ctx context.Context, metric metric.Metric, value interface{}) error {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()

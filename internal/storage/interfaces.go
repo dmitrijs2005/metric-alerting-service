@@ -1,15 +1,21 @@
 package storage
 
-import "github.com/dmitrijs2005/metric-alerting-service/internal/metric"
+import (
+	"context"
 
-const (
-	MetricDoesNotExist  = "metric does not exist"
-	MetricAlreadyExists = "metric already exists"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
 )
 
 type Storage interface {
-	Add(m metric.Metric) error
-	Update(m metric.Metric, v interface{}) error
-	Retrieve(m metric.MetricType, n string) (metric.Metric, error)
-	RetrieveAll() ([]metric.Metric, error)
+	Add(ctx context.Context, m metric.Metric) error
+	Update(ctx context.Context, m metric.Metric, v interface{}) error
+	Retrieve(ctx context.Context, m metric.MetricType, n string) (metric.Metric, error)
+	RetrieveAll(ctx context.Context) ([]metric.Metric, error)
+}
+
+type DbStorage interface {
+	Storage
+	Close() error
+	RunMigrations(ctx context.Context)
+	Ping(ctx context.Context) error
 }
