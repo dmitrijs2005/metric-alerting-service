@@ -94,6 +94,11 @@ func (c *PostgresClient) RetrieveAll(ctx context.Context) ([]metric.Metric, erro
 
 	}
 
+	// Check for iteration errors
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
 	return result, nil
 
 }

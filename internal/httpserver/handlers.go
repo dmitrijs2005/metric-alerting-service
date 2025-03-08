@@ -220,7 +220,7 @@ func (s *HTTPServer) PingHandler(c echo.Context) error {
 
 	ctx := c.Request().Context()
 
-	db, ok := s.Storage.(storage.DbStorage)
+	db, ok := s.Storage.(storage.DBStorage)
 	if ok {
 		err := db.Ping(ctx)
 

@@ -31,7 +31,7 @@ func (c *MockDBClient) RetrieveAll(ctx context.Context) ([]metric.Metric, error)
 	return nil, nil
 }
 
-func NewMockDbClient() *MockDBClient {
+func NewMockDBClient() *MockDBClient {
 	return &MockDBClient{}
 }
 
@@ -39,4 +39,6 @@ func (c *MockDBClient) Close() error {
 	return nil
 }
 
-func (c *MockDBClient) RunMigrations(ctx context.Context) {}
+func (c *MockDBClient) RunMigrations(ctx context.Context) error {
+	return nil
+}

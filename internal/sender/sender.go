@@ -111,7 +111,6 @@ func (s *Sender) Run(wg *sync.WaitGroup) {
 		sendWg := sync.WaitGroup{}
 		for _, v := range s.Data {
 			sendWg.Add(1)
-			fmt.Println(v)
 			go s.SendMetric(v, &sendWg)
 		}
 		sendWg.Wait()

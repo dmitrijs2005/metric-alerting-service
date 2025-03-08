@@ -286,7 +286,7 @@ func TestHTTPServer_ValueJSONHandler(t *testing.T) {
 func TestHTTPServer_PingHandler(t *testing.T) {
 
 	addr := "http://localhost:8080"
-	stor := db.NewMockDbClient()
+	stor := db.NewMockDBClient()
 
 	s := &HTTPServer{
 		Address: addr,

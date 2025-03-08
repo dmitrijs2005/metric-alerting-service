@@ -13,9 +13,9 @@ type Storage interface {
 	RetrieveAll(ctx context.Context) ([]metric.Metric, error)
 }
 
-type DbStorage interface {
+type DBStorage interface {
 	Storage
 	Close() error
-	RunMigrations(ctx context.Context)
+	RunMigrations(ctx context.Context) error
 	Ping(ctx context.Context) error
 }

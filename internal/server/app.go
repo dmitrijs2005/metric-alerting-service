@@ -39,9 +39,9 @@ func (app *App) Run() {
 
 	var s storage.Storage
 
-	useDb := app.config.DatabaseDSN != ""
+	useDB := app.config.DatabaseDSN != ""
 
-	if !useDb {
+	if !useDB {
 		s = memory.NewMemStorage()
 	} else {
 		var err error
@@ -52,7 +52,7 @@ func (app *App) Run() {
 		}
 	}
 
-	db, ok := s.(storage.DbStorage)
+	db, ok := s.(storage.DBStorage)
 
 	if ok {
 		db.RunMigrations(ctx)
@@ -84,7 +84,7 @@ func (app *App) Run() {
 	)
 
 	// restoring data from dump
-	if !useDb && app.config.Restore {
+	if !useDB && app.config.Restore {
 		err := saver.RestoreDump(ctx)
 		if err != nil {
 			app.logger.Error(err.Error())
@@ -105,7 +105,7 @@ func (app *App) Run() {
 	}()
 
 	//if store interval is not 0, launching regular dump saving task
-	if !useDb && app.config.StoreInterval > 0 {
+	if !useDB && app.config.StoreInterval > 0 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -129,7 +129,7 @@ func (app *App) Run() {
 	wg.Wait()
 
 	// значение 0 делает запись синхронной
-	if !useDb && app.config.StoreInterval == 0 {
+	if !useDB && app.config.StoreInterval == 0 {
 		err := saver.SaveDump(ctx)
 
 		if err != nil {
