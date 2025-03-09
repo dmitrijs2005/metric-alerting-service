@@ -71,3 +71,17 @@ func (s *MemStorage) Update(ctx context.Context, metric metric.Metric, value int
 
 	return metric.Update(value)
 }
+
+func (s *MemStorage) UpdateBatch(ctx context.Context, metrics *[]metric.Metric) error {
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, metric := range *metrics {
+		key := getKey(metric.GetType(), metric.GetName())
+		s.Data[key] = metric
+	}
+
+	return nil
+
+}

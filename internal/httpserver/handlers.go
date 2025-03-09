@@ -80,6 +80,31 @@ func (s *HTTPServer) fillValue(m metric.Metric, r *dto.Metrics) error {
 	return nil
 }
 
+func (s *HTTPServer) FromDto(mDTO dto.Metrics) (metric.Metric, error) {
+
+	m, err := metric.NewMetric(metric.MetricType(mDTO.MType), mDTO.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	if gauge, ok := m.(*metric.Gauge); ok {
+		err := gauge.Update(*mDTO.Value)
+		if err != nil {
+			return nil, err
+		}
+	} else if counter, ok := m.(*metric.Counter); ok {
+		err := counter.Update(*mDTO.Delta)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		return nil, metric.ErrorInvalidMetricType
+	}
+
+	return m, nil
+
+}
+
 func (s *HTTPServer) UpdateJSONHandler(c echo.Context) error {
 
 	ctx := c.Request().Context()
@@ -233,4 +258,29 @@ func (s *HTTPServer) PingHandler(c echo.Context) error {
 
 	return c.String(http.StatusInternalServerError, ErrorTypeNotImplemented.Error())
 
+}
+
+func (s *HTTPServer) UpdatesJSONHandler(c echo.Context) error {
+
+	ctx := c.Request().Context()
+
+	mDTO := new([]dto.Metrics)
+	if err := c.Bind(mDTO); err != nil {
+		s.logger.Errorw("Error converting DTO to metric", "err", err)
+		return c.String(http.StatusBadRequest, "bad request")
+	}
+
+	metrics := make([]metric.Metric, len(*mDTO))
+
+	for i, o := range *mDTO {
+		m, err := s.FromDto(o)
+		if err != nil {
+			s.logger.Errorw("Error initializing metric", "err", err)
+			return c.String(http.StatusBadRequest, "bad request")
+		}
+		metrics[i] = m
+	}
+	s.Storage.UpdateBatch(ctx, &metrics)
+
+	return c.JSON(http.StatusOK, mDTO)
 }

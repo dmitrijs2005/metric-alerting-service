@@ -188,3 +188,7 @@ func (c *PostgresClient) Retrieve(ctx context.Context, t metric.MetricType, n st
 
 	return m, nil
 }
+
+func (s *PostgresClient) UpdateBatch(ctx context.Context, metrics *[]metric.Metric) error {
+	return nil
+}

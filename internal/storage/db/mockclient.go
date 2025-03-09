@@ -42,3 +42,7 @@ func (c *MockDBClient) Close() error {
 func (c *MockDBClient) RunMigrations(ctx context.Context) error {
 	return nil
 }
+
+func (s *MockDBClient) UpdateBatch(ctx context.Context, metrics *[]metric.Metric) error {
+	return nil
+}
