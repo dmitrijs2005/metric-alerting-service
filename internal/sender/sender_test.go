@@ -48,3 +48,25 @@ func TestMetricAgent_SendMetric(t *testing.T) {
 		})
 	}
 }
+
+func TestMetricAgent_SendMetrics(t *testing.T) {
+
+	metric1 := &metric.Counter{Name: "counter1", Value: 1}
+	metric2 := &metric.Gauge{Name: "gauge1", Value: 1}
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodPost, r.Method, "Expected POST method")
+		assert.Equal(t, r.URL.Path, "/updates/", "Unexpected URL path")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer mockServer.Close()
+
+	agent := &Sender{
+		ServerURL:      mockServer.URL,
+		ReportInterval: 10 * time.Second,
+		Data:           map[string]metric.Metric{metric1.GetName(): metric1, metric2.GetName(): metric2},
+	}
+
+	agent.SendMetrics()
+
+}
