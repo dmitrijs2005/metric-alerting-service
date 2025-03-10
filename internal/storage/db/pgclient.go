@@ -64,7 +64,7 @@ func (c *PostgresClient) RetrieveAll(ctx context.Context) ([]metric.Metric, erro
 		err := rows.Scan(&t, &n, &mvi, &mvf)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				return nil, errors.New(storage.MetricDoesNotExist)
+				return nil, storage.ErrorMetricDoesNotExist
 			} else {
 				return nil, err
 			}
@@ -103,8 +103,7 @@ func (c *PostgresClient) RetrieveAll(ctx context.Context) ([]metric.Metric, erro
 
 }
 
-func (c *PostgresClient) Add(ctx context.Context, m metric.Metric) error {
-
+func (c *PostgresClient) ExecuteAdd(ctx context.Context, exec DBExecutor, m metric.Metric) error {
 	var mvi sql.NullInt64
 	var mvf sql.NullFloat64
 
@@ -121,53 +120,50 @@ func (c *PostgresClient) Add(ctx context.Context, m metric.Metric) error {
 	}
 
 	s := "insert into metrics (metric_type, metric_name, metric_value_int, metric_value_float) values ($1, $2, $3, $4)"
-	_, err := c.db.ExecContext(ctx, s, m.GetType(), m.GetName(), mvi, mvf)
+	_, err := exec.ExecContext(ctx, s, m.GetType(), m.GetName(), mvi, mvf)
 	return err
 }
 
-func (c *PostgresClient) Update(ctx context.Context, m metric.Metric, v interface{}) error {
+func (c *PostgresClient) Add(ctx context.Context, m metric.Metric) error {
+	return c.ExecuteAdd(ctx, c.db, m)
+}
 
-	var mvi sql.NullInt64
-	var mvf sql.NullFloat64
+func (c *PostgresClient) ExecuteUpdate(ctx context.Context, exec DBExecutor, m metric.Metric, v interface{}) error {
 
-	if gauge, ok := m.(*metric.Gauge); ok {
-		mvi.Valid = false
-		err := gauge.Update(v)
-		if err != nil {
-			return err
-		}
-		mvf.Float64 = gauge.Value
-		mvf.Valid = true
-	} else if counter, ok := m.(*metric.Counter); ok {
-		err := counter.Update(v)
-		if err != nil {
-			return err
-		}
-		mvi.Int64 = counter.Value
-		mvi.Valid = true
-		mvf.Valid = false
+	s := "update metrics set "
+
+	if _, ok := m.(*metric.Gauge); ok {
+		s += "metric_value_float = $1 "
+	} else if _, ok := m.(*metric.Counter); ok {
+		s += "metric_value_int = metric_value_int + $1 "
 	} else {
 		return metric.ErrorInvalidMetricType
 	}
 
-	s := "update metrics set metric_value_int = $1, metric_value_float = $2 where metric_type = $3 and metric_name = $4"
-	_, err := c.db.ExecContext(ctx, s, mvi, mvf, m.GetType(), m.GetName())
+	s += "where metric_type = $2 and metric_name = $3"
+
+	_, err := exec.ExecContext(ctx, s, v, m.GetType(), m.GetName())
 	return err
 
 }
 
-func (c *PostgresClient) Retrieve(ctx context.Context, t metric.MetricType, n string) (metric.Metric, error) {
+func (c *PostgresClient) Update(ctx context.Context, m metric.Metric, v interface{}) error {
+	return c.ExecuteUpdate(ctx, c.db, m, v)
+}
+
+func (c *PostgresClient) ExecuteRetrieve(ctx context.Context, exec DBExecutor, t metric.MetricType, n string) (metric.Metric, error) {
 
 	var mvi sql.NullInt64
 	var mvf sql.NullFloat64
 
 	s := "select metric_value_int, metric_value_float from metrics where metric_type=$1 and metric_name=$2"
 
-	row := c.db.QueryRowContext(ctx, s, t, n)
+	row := exec.QueryRowContext(ctx, s, t, n)
 	err := row.Scan(&mvi, &mvf)
+
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errors.New(storage.MetricDoesNotExist)
+			return nil, storage.ErrorMetricDoesNotExist
 		} else {
 			return nil, err
 		}
@@ -179,9 +175,9 @@ func (c *PostgresClient) Retrieve(ctx context.Context, t metric.MetricType, n st
 	}
 
 	if gauge, ok := m.(*metric.Gauge); ok {
-		gauge.Update(mvf)
+		gauge.Value = mvf.Float64
 	} else if counter, ok := m.(*metric.Counter); ok {
-		counter.Update(mvi)
+		counter.Value = mvi.Int64
 	} else {
 		return nil, metric.ErrorInvalidMetricType
 	}
@@ -189,6 +185,39 @@ func (c *PostgresClient) Retrieve(ctx context.Context, t metric.MetricType, n st
 	return m, nil
 }
 
+func (c *PostgresClient) Retrieve(ctx context.Context, t metric.MetricType, n string) (metric.Metric, error) {
+	return c.ExecuteRetrieve(ctx, c.db, t, n)
+}
+
 func (s *PostgresClient) UpdateBatch(ctx context.Context, metrics *[]metric.Metric) error {
-	return nil
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+
+	defer tx.Rollback()
+
+	for _, metric := range *metrics {
+		m, err := s.ExecuteRetrieve(ctx, tx, metric.GetType(), metric.GetName())
+
+		if err != nil {
+			if errors.Is(err, storage.ErrorMetricDoesNotExist) {
+				err := s.ExecuteAdd(ctx, tx, metric)
+				if err != nil {
+					return err
+				}
+			} else {
+				return err
+			}
+		} else {
+			err := s.ExecuteUpdate(ctx, tx, m, metric.GetValue())
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return tx.Commit()
+
 }

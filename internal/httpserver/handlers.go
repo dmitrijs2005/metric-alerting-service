@@ -46,7 +46,6 @@ func (s *HTTPServer) updateMetric(ctx context.Context, metricType string, metric
 	} else {
 		err = s.Storage.Update(ctx, m, metricValue)
 		if err != nil {
-
 			return nil, err
 		}
 	}
@@ -80,7 +79,7 @@ func (s *HTTPServer) fillValue(m metric.Metric, r *dto.Metrics) error {
 	return nil
 }
 
-func (s *HTTPServer) FromDto(mDTO dto.Metrics) (metric.Metric, error) {
+func (s *HTTPServer) MetricFromDto(mDTO dto.Metrics) (metric.Metric, error) {
 
 	m, err := metric.NewMetric(metric.MetricType(mDTO.MType), mDTO.ID)
 	if err != nil {
@@ -105,12 +104,29 @@ func (s *HTTPServer) FromDto(mDTO dto.Metrics) (metric.Metric, error) {
 
 }
 
+func (s *HTTPServer) DTOFromMetric(m metric.Metric) (*dto.Metrics, error) {
+
+	o := &dto.Metrics{ID: m.GetName(), MType: string(m.GetType())}
+
+	if gauge, ok := m.(*metric.Gauge); ok {
+		o.Value = float64Ptr(gauge.Value)
+	} else if counter, ok := m.(*metric.Counter); ok {
+		o.Delta = int64Ptr(counter.Value)
+	} else {
+		return nil, metric.ErrorInvalidMetricType
+	}
+
+	return o, nil
+
+}
+
 func (s *HTTPServer) UpdateJSONHandler(c echo.Context) error {
 
 	ctx := c.Request().Context()
 
 	mDTO := new(dto.Metrics)
 	if err := c.Bind(mDTO); err != nil {
+		s.logger.Errorw("Error parsing metric", "err", err)
 		return c.String(http.StatusBadRequest, "bad request")
 	}
 
@@ -119,12 +135,16 @@ func (s *HTTPServer) UpdateJSONHandler(c echo.Context) error {
 	switch metric.MetricType(mDTO.MType) {
 	case metric.MetricTypeCounter:
 		if mDTO.Delta == nil {
-			return c.String(http.StatusBadRequest, "bad request")
+			msg := "wrong delta"
+			s.logger.Errorw("Error parsing metric", "err", msg)
+			return c.String(http.StatusBadRequest, msg)
 		}
 		metricValue = *mDTO.Delta
 	case metric.MetricTypeGauge:
 		if mDTO.Value == nil {
-			return c.String(http.StatusBadRequest, "bad request")
+			msg := "wrong value"
+			s.logger.Errorw("Error parsing metric", "err", msg)
+			return c.String(http.StatusBadRequest, msg)
 		}
 		metricValue = *mDTO.Value
 	default:
@@ -132,9 +152,7 @@ func (s *HTTPServer) UpdateJSONHandler(c echo.Context) error {
 	}
 
 	m, err := s.updateMetric(ctx, mDTO.MType, mDTO.ID, metricValue)
-
 	if err != nil {
-
 		s.logger.Errorw("Error updating metric", "err", err)
 
 		isBadRequest := errors.Is(err, metric.ErrorInvalidMetricName) || errors.Is(err, metric.ErrorInvalidMetricType) || errors.Is(err, metric.ErrorInvalidMetricValue)
@@ -146,14 +164,20 @@ func (s *HTTPServer) UpdateJSONHandler(c echo.Context) error {
 		}
 	}
 
-	err = s.fillValue(m, mDTO)
-
+	updated, err := s.Storage.Retrieve(ctx, m.GetType(), m.GetName())
 	if err != nil {
+		s.logger.Errorw("Error retrieving metric", "err", err)
+		return c.String(http.StatusInternalServerError, err.Error())
+	}
+
+	result, err := s.DTOFromMetric(updated)
+	if err != nil {
+		s.logger.Errorw("Error retrieving metric", "err", err)
 		return c.String(http.StatusInternalServerError, err.Error())
 	}
 
 	// // if everything is correct and metric was saved
-	return c.JSON(http.StatusOK, mDTO)
+	return c.JSON(http.StatusOK, result)
 }
 
 func (s *HTTPServer) UpdateHandler(c echo.Context) error {
@@ -273,14 +297,38 @@ func (s *HTTPServer) UpdatesJSONHandler(c echo.Context) error {
 	metrics := make([]metric.Metric, len(*mDTO))
 
 	for i, o := range *mDTO {
-		m, err := s.FromDto(o)
+		m, err := s.MetricFromDto(o)
 		if err != nil {
 			s.logger.Errorw("Error initializing metric", "err", err)
 			return c.String(http.StatusBadRequest, "bad request")
 		}
 		metrics[i] = m
 	}
-	s.Storage.UpdateBatch(ctx, &metrics)
 
-	return c.JSON(http.StatusOK, mDTO)
+	err := s.Storage.UpdateBatch(ctx, &metrics)
+	if err != nil {
+		s.logger.Errorw("Error updating metrics", "err", err)
+		return c.String(http.StatusBadRequest, err.Error())
+	}
+
+	results := make([]dto.Metrics, len(*mDTO))
+
+	for i, o := range *mDTO {
+		updated, err := s.Storage.Retrieve(ctx, metric.MetricType(o.MType), o.ID)
+		if err != nil {
+			s.logger.Errorw("Error retrieving metric", "err", err)
+			return c.String(http.StatusInternalServerError, err.Error())
+		}
+
+		result, err := s.DTOFromMetric(updated)
+		if err != nil {
+			s.logger.Errorw("Error retrieving metric", "err", err)
+			return c.String(http.StatusInternalServerError, err.Error())
+		}
+
+		results[i] = *result
+
+	}
+
+	return c.JSON(http.StatusOK, results)
 }

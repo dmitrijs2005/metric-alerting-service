@@ -32,7 +32,7 @@ func (s *MemStorage) Retrieve(ctx context.Context, metricType metric.MetricType,
 	if value, exists := s.Data[key]; exists {
 		return value, nil
 	} else {
-		return nil, errors.New(storage.MetricDoesNotExist)
+		return nil, storage.ErrorMetricDoesNotExist
 	}
 }
 

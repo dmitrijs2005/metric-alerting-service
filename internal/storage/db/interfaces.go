@@ -1,7 +1,12 @@
 package db
 
-import "context"
+import (
+	"context"
+	"database/sql"
+)
 
-type DBClient interface {
-	Ping(ctx context.Context) error
+// DBExecutor abstracts sql.DB and sql.Tx for executing queries
+type DBExecutor interface {
+	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }

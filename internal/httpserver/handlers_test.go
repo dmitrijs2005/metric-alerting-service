@@ -306,3 +306,67 @@ func TestHTTPServer_PingHandler(t *testing.T) {
 	}
 
 }
+
+func TestHTTPServer_UpdateJSONHandler(t *testing.T) {
+
+	addr := "http://localhost:8080"
+	stor := memory.NewMemStorage()
+
+	ctr1 := &metric.Counter{Name: "ctr1"}
+
+	type want struct {
+		code        int
+		name        string
+		value       int64
+		contentType string
+	}
+	tests := []struct {
+		want   want
+		name   string
+		method string
+		mtype  metric.MetricType
+		mname  string
+		mvalue int64
+	}{
+
+		{name: "Counter increment 1", method: http.MethodPost, mtype: ctr1.GetType(), mname: ctr1.GetName(), mvalue: 1, want: want{code: 200, name: ctr1.Name, value: 1, contentType: "application/json"}},
+		{name: "Counter increment 2", method: http.MethodPost, mtype: ctr1.GetType(), mname: ctr1.GetName(), mvalue: 2, want: want{code: 200, name: ctr1.Name, value: 3, contentType: "application/json"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &HTTPServer{
+				Address: addr,
+				Storage: stor,
+			}
+
+			e := echo.New()
+
+			payload := &dto.Metrics{ID: tt.mname, MType: string(tt.mtype), Delta: int64Ptr(tt.mvalue)}
+
+			// Marshal the payload to JSON
+			jsonData, err := json.Marshal(payload)
+			if err != nil {
+				t.Fatalf("Failed to marshal JSON: %v", err)
+			}
+
+			request := httptest.NewRequest(tt.method, "/", bytes.NewBuffer(jsonData))
+			request.Header.Set("Content-Type", "application/json")
+
+			rec := httptest.NewRecorder()
+
+			c := e.NewContext(request, rec)
+
+			if assert.NoError(t, s.UpdateJSONHandler(c)) {
+				assert.Equal(t, tt.want.code, rec.Code)
+				assert.Equal(t, tt.want.contentType, rec.Header().Get("Content-Type"))
+
+				var response dto.Metrics
+				err := json.Unmarshal(rec.Body.Bytes(), &response)
+				assert.NoError(t, err)
+
+				assert.Equal(t, tt.want.value, *response.Delta)
+
+			}
+		})
+	}
+}
