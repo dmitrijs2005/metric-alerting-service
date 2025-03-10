@@ -189,9 +189,9 @@ func (c *PostgresClient) Retrieve(ctx context.Context, t metric.MetricType, n st
 	return c.ExecuteRetrieve(ctx, c.db, t, n)
 }
 
-func (s *PostgresClient) UpdateBatch(ctx context.Context, metrics *[]metric.Metric) error {
+func (c *PostgresClient) UpdateBatch(ctx context.Context, metrics *[]metric.Metric) error {
 
-	tx, err := s.db.Begin()
+	tx, err := c.db.Begin()
 	if err != nil {
 		return err
 	}
@@ -199,11 +199,11 @@ func (s *PostgresClient) UpdateBatch(ctx context.Context, metrics *[]metric.Metr
 	defer tx.Rollback()
 
 	for _, metric := range *metrics {
-		m, err := s.ExecuteRetrieve(ctx, tx, metric.GetType(), metric.GetName())
+		m, err := c.ExecuteRetrieve(ctx, tx, metric.GetType(), metric.GetName())
 
 		if err != nil {
 			if errors.Is(err, storage.ErrorMetricDoesNotExist) {
-				err := s.ExecuteAdd(ctx, tx, metric)
+				err := c.ExecuteAdd(ctx, tx, metric)
 				if err != nil {
 					return err
 				}
@@ -211,7 +211,7 @@ func (s *PostgresClient) UpdateBatch(ctx context.Context, metrics *[]metric.Metr
 				return err
 			}
 		} else {
-			err := s.ExecuteUpdate(ctx, tx, m, metric.GetValue())
+			err := c.ExecuteUpdate(ctx, tx, m, metric.GetValue())
 			if err != nil {
 				return err
 			}
