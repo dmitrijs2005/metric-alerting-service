@@ -8,9 +8,7 @@ import (
 )
 
 func TestMetricAgent_updateGauge(t *testing.T) {
-	a := &Collector{
-		Data: make(map[string]metric.Metric),
-	}
+	a := &Collector{}
 	type args struct {
 		metricName  string
 		metricValue float64
@@ -24,16 +22,21 @@ func TestMetricAgent_updateGauge(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			a.updateGauge(tt.args.metricName, tt.args.metricValue)
-			assert.Equal(t, a.Data[tt.args.metricName].GetType(), metric.MetricTypeGauge)
-			assert.Equal(t, a.Data[tt.args.metricName].GetValue(), tt.args.metricValue)
+
+			val, ok := a.Data.Load(tt.args.metricName)
+			assert.True(t, ok)
+
+			m, ok := val.(metric.Metric)
+			assert.True(t, ok)
+
+			assert.Equal(t, m.GetType(), metric.MetricTypeGauge)
+			assert.Equal(t, m.GetValue(), tt.args.metricValue)
 		})
 	}
 }
 
 func TestMetricAgent_updateCounter(t *testing.T) {
-	a := &Collector{
-		Data: make(map[string]metric.Metric),
-	}
+	a := &Collector{}
 	type args struct {
 		metricName  string
 		metricValue int64
@@ -47,8 +50,15 @@ func TestMetricAgent_updateCounter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			a.updateCounter(tt.args.metricName, tt.args.metricValue)
-			assert.Equal(t, a.Data[tt.args.metricName].GetType(), metric.MetricTypeCounter)
-			assert.Equal(t, a.Data[tt.args.metricName].GetValue(), tt.args.metricValue)
+
+			val, ok := a.Data.Load(tt.args.metricName)
+			assert.True(t, ok)
+
+			m, ok := val.(metric.Metric)
+			assert.True(t, ok)
+
+			assert.Equal(t, m.GetType(), metric.MetricTypeCounter)
+			assert.Equal(t, m.GetValue(), tt.args.metricValue)
 		})
 	}
 }

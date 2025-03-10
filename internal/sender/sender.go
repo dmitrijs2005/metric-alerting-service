@@ -17,10 +17,10 @@ import (
 type Sender struct {
 	ReportInterval time.Duration
 	ServerURL      string
-	Data           map[string]metric.Metric
+	Data           *sync.Map
 }
 
-func NewSender(reportInterval time.Duration, data map[string]metric.Metric, serverURL string) *Sender {
+func NewSender(reportInterval time.Duration, data *sync.Map, serverURL string) *Sender {
 	return &Sender{
 		ReportInterval: reportInterval,
 		Data:           data,
@@ -30,8 +30,6 @@ func NewSender(reportInterval time.Duration, data map[string]metric.Metric, serv
 
 func (s *Sender) SendMetric(m metric.Metric, wg *sync.WaitGroup) {
 	defer wg.Done()
-
-	//v := fmt.Sprintf("%v", m.GetValue())
 
 	url := s.ServerURL
 	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
@@ -113,26 +111,37 @@ func (s *Sender) SendMetrics() error {
 
 	data := make([]*dto.Metrics, 0)
 
-	for _, m := range s.Data {
-		item := &dto.Metrics{ID: m.GetName(), MType: string(m.GetType())}
+	// Concurrent reading (safe)
+	s.Data.Range(func(key, val interface{}) bool {
 
-		if m.GetType() == metric.MetricTypeCounter {
-			v, ok := m.GetValue().(int64)
-			if ok {
-				item.Delta = &v
-			} else {
-				return ErrorTypeConversion
+		// Convert interface{} to *metric.Counter and update value
+		if m, ok := val.(metric.Metric); ok {
+			item := &dto.Metrics{ID: m.GetName(), MType: string(m.GetType())}
+
+			if m.GetType() == metric.MetricTypeCounter {
+				v, ok := m.GetValue().(int64)
+				if ok {
+					item.Delta = &v
+				} else {
+					return false
+				}
+			} else if m.GetType() == metric.MetricTypeGauge {
+				v, ok := m.GetValue().(float64)
+				if ok {
+					item.Value = &v
+				} else {
+					return false
+				}
 			}
-		} else if m.GetType() == metric.MetricTypeGauge {
-			v, ok := m.GetValue().(float64)
-			if ok {
-				item.Value = &v
-			} else {
-				return ErrorTypeConversion
-			}
+			data = append(data, item)
 		}
-		data = append(data, item)
-	}
+
+		return true
+	})
+
+	// for m := s.Data.Range() {
+
+	// }
 
 	// Convert the data to JSON
 	jsonData, err := json.Marshal(data)
