@@ -220,8 +220,12 @@ func (s *HTTPServer) ValueJSONHandler(c echo.Context) error {
 
 	m, err := s.Storage.Retrieve(ctx, metric.MetricType(metricType), metricName)
 
-	if m == nil && errors.Is(err, common.ErrorMetricDoesNotExist) {
-		return c.String(http.StatusNotFound, err.Error())
+	if m == nil {
+		if errors.Is(err, common.ErrorMetricDoesNotExist) {
+			return c.String(http.StatusNotFound, err.Error())
+		} else {
+			return c.String(http.StatusInternalServerError, err.Error())
+		}
 	}
 
 	err = s.fillValue(m, mDTO)
