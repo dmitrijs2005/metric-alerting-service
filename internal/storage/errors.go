@@ -1,10 +1,6 @@
 package storage
 
-import "errors"
-
 const (
-	MetricDoesNotExist  = "metric does not exist"
-	MetricAlreadyExists = "metric already exists"
+	Metric1DoesNotExist  = "metric does not exist"
+	MetricA1lreadyExists = "metric already exists"
 )
-
-var ErrorMetricDoesNotExist = errors.New("metric does not exist")

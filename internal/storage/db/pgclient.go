@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"errors"
 
+	"github.com/dmitrijs2005/metric-alerting-service/internal/common"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
-	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 )
@@ -64,7 +64,7 @@ func (c *PostgresClient) RetrieveAll(ctx context.Context) ([]metric.Metric, erro
 		err := rows.Scan(&t, &n, &mvi, &mvf)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				return nil, storage.ErrorMetricDoesNotExist
+				return nil, common.ErrorMetricDoesNotExist
 			} else {
 				return nil, err
 			}
@@ -163,7 +163,7 @@ func (c *PostgresClient) ExecuteRetrieve(ctx context.Context, exec DBExecutor, t
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, storage.ErrorMetricDoesNotExist
+			return nil, common.ErrorMetricDoesNotExist
 		} else {
 			return nil, err
 		}
@@ -202,7 +202,7 @@ func (c *PostgresClient) UpdateBatch(ctx context.Context, metrics *[]metric.Metr
 		m, err := c.ExecuteRetrieve(ctx, tx, metric.GetType(), metric.GetName())
 
 		if err != nil {
-			if errors.Is(err, storage.ErrorMetricDoesNotExist) {
+			if errors.Is(err, common.ErrorMetricDoesNotExist) {
 				err := c.ExecuteAdd(ctx, tx, metric)
 				if err != nil {
 					return err

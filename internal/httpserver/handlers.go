@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"sort"
 
+	"github.com/dmitrijs2005/metric-alerting-service/internal/common"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/dto"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
@@ -18,7 +19,7 @@ func (s *HTTPServer) updateMetric(ctx context.Context, metricType string, metric
 	m, err := s.Storage.Retrieve(ctx, metric.MetricType(metricType), metricName)
 
 	if err != nil {
-		if err.Error() != storage.MetricDoesNotExist {
+		if !errors.Is(err, common.ErrorMetricDoesNotExist) {
 			return nil, err
 		} else {
 			m, err = metric.NewMetric(metric.MetricType(metricType), metricName)
@@ -219,7 +220,7 @@ func (s *HTTPServer) ValueJSONHandler(c echo.Context) error {
 
 	m, err := s.Storage.Retrieve(ctx, metric.MetricType(metricType), metricName)
 
-	if m == nil && err.Error() == storage.MetricDoesNotExist {
+	if m == nil && errors.Is(err, common.ErrorMetricDoesNotExist) {
 		return c.String(http.StatusNotFound, err.Error())
 	}
 
@@ -241,7 +242,7 @@ func (s *HTTPServer) ValueHandler(c echo.Context) error {
 
 	m, err := s.Storage.Retrieve(ctx, metric.MetricType(metricType), metricName)
 
-	if m == nil && err.Error() == storage.MetricDoesNotExist {
+	if m == nil && errors.Is(err, common.ErrorMetricDoesNotExist) {
 		return c.String(http.StatusNotFound, err.Error())
 	}
 

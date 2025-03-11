@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dmitrijs2005/metric-alerting-service/internal/common"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/dto"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
-	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage/db"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage/memory"
 	"github.com/labstack/echo/v4"
@@ -136,7 +136,7 @@ func TestHTTPServer_ValueHandler(t *testing.T) {
 
 		{name: "Counter OK", method: http.MethodGet, url: "/value/counter/counter1", want: want{code: 200, response: fmt.Sprintf("%v", metric1.GetValue()), contentType: "text/plain; charset=UTF-8"}},
 		{name: "Gauge OK", method: http.MethodGet, url: "/value/gauge/gauge1", want: want{code: 200, response: fmt.Sprintf("%v", metric2.GetValue()), contentType: "text/plain; charset=UTF-8"}},
-		{name: "Unnown metric", method: http.MethodGet, url: "/value/gauge/unknwn", want: want{code: 404, response: storage.MetricDoesNotExist, contentType: "text/plain; charset=UTF-8"}},
+		{name: "Unnown metric", method: http.MethodGet, url: "/value/gauge/unknwn", want: want{code: 404, response: common.ErrorMetricDoesNotExist.Error(), contentType: "text/plain; charset=UTF-8"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -10,8 +10,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dmitrijs2005/metric-alerting-service/internal/common"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/dto"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
+)
+
+const (
+	MaxRetries   = 3
+	RetryAddTime = 2 * time.Second
 )
 
 type Sender struct {
@@ -28,7 +34,7 @@ func NewSender(reportInterval time.Duration, data *sync.Map, serverURL string) *
 	}
 }
 
-func (s *Sender) SendMetric(m metric.Metric, wg *sync.WaitGroup) {
+func (s *Sender) SendMetric(m metric.Metric, wg *sync.WaitGroup) error {
 	defer wg.Done()
 
 	url := s.ServerURL
@@ -43,21 +49,21 @@ func (s *Sender) SendMetric(m metric.Metric, wg *sync.WaitGroup) {
 		if ok {
 			data.Delta = &v
 		} else {
-			panic(ErrorTypeConversion)
+			return common.ErrorTypeConversion
 		}
 	} else if m.GetType() == metric.MetricTypeGauge {
 		v, ok := m.GetValue().(float64)
 		if ok {
 			data.Value = &v
 		} else {
-			panic(ErrorTypeConversion)
+			return common.ErrorTypeConversion
 		}
 	}
 
 	// Convert the data to JSON
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		panic(ErrorMarshallingJSON)
+		return common.ErrorMarshallingJSON
 	}
 
 	buf := bytes.NewBuffer(nil)
@@ -65,14 +71,14 @@ func (s *Sender) SendMetric(m metric.Metric, wg *sync.WaitGroup) {
 
 	_, err = zb.Write(jsonData)
 	if err != nil {
-		fmt.Println("Error writing to buffer request:", err)
-		return
+		//fmt.Println("Error writing to buffer request:", err)
+		return err
 	}
 
 	err = zb.Close()
 	if err != nil {
-		fmt.Println("Error closing buffer:", err)
-		return
+		//fmt.Println("Error closing buffer:", err)
+		return err
 	}
 
 	url = fmt.Sprintf("%s/update/", url)
@@ -80,8 +86,8 @@ func (s *Sender) SendMetric(m metric.Metric, wg *sync.WaitGroup) {
 	// Create a new HTTP request
 	req, err := http.NewRequest("POST", url, buf)
 	if err != nil {
-		fmt.Println("Error creating request:", err)
-		return
+		//fmt.Println("Error creating request:", err)
+		return err
 	}
 
 	// Set the content type to application/json
@@ -92,17 +98,19 @@ func (s *Sender) SendMetric(m metric.Metric, wg *sync.WaitGroup) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Println("Error sending request:", err)
-		return
+		//fmt.Println("Error sending request:", err)
+		return err
 	}
 	defer resp.Body.Close()
 
+	return nil
+}
+
+func (s *Sender) WriteToConsole(msg string) {
+	fmt.Printf("%v %s \n", time.Now(), msg)
 }
 
 func (s *Sender) SendMetrics() error {
-	//defer wg.Done()
-
-	//v := fmt.Sprintf("%v", m.GetValue())
 
 	url := s.ServerURL
 	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
@@ -139,14 +147,10 @@ func (s *Sender) SendMetrics() error {
 		return true
 	})
 
-	// for m := s.Data.Range() {
-
-	// }
-
 	// Convert the data to JSON
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		return ErrorMarshallingJSON
+		return common.ErrorMarshallingJSON
 	}
 
 	buf := bytes.NewBuffer(nil)
@@ -154,25 +158,22 @@ func (s *Sender) SendMetrics() error {
 
 	_, err = zb.Write(jsonData)
 	if err != nil {
-		fmt.Println("Error writing to buffer request:", err)
-		return err
+		return common.NewWrappedError("Error writing to buffer request", err)
 	}
 
 	err = zb.Close()
 	if err != nil {
-		fmt.Println("Error closing buffer:", err)
-		return err
+		return common.NewWrappedError("Error closing buffer", err)
 	}
 
 	url = fmt.Sprintf("%s/updates/", url)
 
-	fmt.Println("sending...")
+	s.WriteToConsole("sending...")
 
 	// Create a new HTTP request
 	req, err := http.NewRequest("POST", url, buf)
 	if err != nil {
-		fmt.Println("Error creating request:", err)
-		return err
+		return common.NewWrappedError("Error creating request", err)
 	}
 
 	// Set the content type to application/json
@@ -183,12 +184,11 @@ func (s *Sender) SendMetrics() error {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Println("Error sending request:", err)
-		return err
+		return common.NewWrappedError("Error sending request", err)
 	}
 	defer resp.Body.Close()
 
-	fmt.Println("received...")
+	s.WriteToConsole("reply received...")
 
 	return nil
 
@@ -202,7 +202,19 @@ func (s *Sender) Run(wg *sync.WaitGroup) {
 
 		err := s.SendMetrics()
 		if err != nil {
-			fmt.Println("Error sending metrics:", err)
+			for i := 0; i < MaxRetries; i++ {
+				s.WriteToConsole(err.Error())
+				if common.IsErrorRetriable(err) {
+					time.Sleep(time.Duration(i)*RetryAddTime + 1*time.Second)
+					err := s.SendMetrics()
+					if err == nil {
+						break
+					}
+				} else {
+					s.WriteToConsole("Error is not retriable, waiting...")
+					break
+				}
+			}
 		}
 
 		time.Sleep(s.ReportInterval)

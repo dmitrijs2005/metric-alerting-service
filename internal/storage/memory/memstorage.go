@@ -1,12 +1,11 @@
 package memory
 
 import (
-	"errors"
 	"fmt"
 	"sync"
 
+	"github.com/dmitrijs2005/metric-alerting-service/internal/common"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
-	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
 	"golang.org/x/net/context"
 )
 
@@ -32,7 +31,7 @@ func (s *MemStorage) Retrieve(ctx context.Context, metricType metric.MetricType,
 	if value, exists := s.Data[key]; exists {
 		return value, nil
 	} else {
-		return nil, storage.ErrorMetricDoesNotExist
+		return nil, common.ErrorMetricDoesNotExist
 	}
 }
 
@@ -58,7 +57,7 @@ func (s *MemStorage) Add(ctx context.Context, metric metric.Metric) error {
 
 	_, exists := s.Data[key]
 	if exists {
-		return errors.New(storage.MetricAlreadyExists)
+		return common.ErrorMetricAlreadyExists
 	}
 	s.Data[key] = metric
 	return nil

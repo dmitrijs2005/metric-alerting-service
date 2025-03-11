@@ -6,8 +6,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/dmitrijs2005/metric-alerting-service/internal/common"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
-	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -130,7 +130,7 @@ func TestMemStorage_Add(t *testing.T) {
 		err     string
 	}{
 		{name: "Add second metric", args: args{metric: metric2}, wantErr: false},
-		{name: "Add same metric, should be an error", args: args{metric: metric1}, wantErr: true, err: storage.MetricAlreadyExists},
+		{name: "Add same metric, should be an error", args: args{metric: metric1}, wantErr: true, err: common.ErrorMetricAlreadyExists.Error()},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
