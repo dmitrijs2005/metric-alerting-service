@@ -10,6 +10,7 @@ var (
 	ErrorMarshallingJSON     = errors.New("error marshaling json")
 	ErrorMetricDoesNotExist  = errors.New("metric does not exist")
 	ErrorMetricAlreadyExists = errors.New("metric already exists")
+	ErrorTypeNotImplemented  = errors.New("not implemented")
 )
 
 type WrappedError struct {

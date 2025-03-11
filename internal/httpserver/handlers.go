@@ -65,14 +65,14 @@ func (s *HTTPServer) fillValue(m metric.Metric, r *dto.Metrics) error {
 		if ok {
 			r.Delta = &int64Val
 		} else {
-			return ErrorTypeConversion
+			return common.ErrorTypeConversion
 		}
 	case metric.MetricTypeGauge:
 		float64Val, ok := m.GetValue().(float64)
 		if ok {
 			r.Value = &float64Val
 		} else {
-			return ErrorTypeConversion
+			return common.ErrorTypeConversion
 		}
 	default:
 		return metric.ErrorInvalidMetricType
@@ -281,7 +281,7 @@ func (s *HTTPServer) PingHandler(c echo.Context) error {
 		return c.String(http.StatusOK, "OK")
 	}
 
-	return c.String(http.StatusInternalServerError, ErrorTypeNotImplemented.Error())
+	return c.String(http.StatusInternalServerError, common.ErrorTypeNotImplemented.Error())
 
 }
 
