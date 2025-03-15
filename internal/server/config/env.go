@@ -30,4 +30,9 @@ func parseEnv(config *Config) {
 		}
 		config.Restore = val
 	}
+
+	if envVar, ok := os.LookupEnv("DATABASE_DSN"); ok {
+		config.DatabaseDSN = envVar
+	}
+
 }

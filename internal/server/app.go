@@ -8,34 +8,64 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/dmitrijs2005/metric-alerting-service/internal/dumpsaver"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/httpserver"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/logger"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/server/config"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/storage/db"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/storage/file"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/storage/memory"
 )
 
 type App struct {
-	ctx        context.Context
-	config     *config.Config
-	cancelFunc context.CancelFunc
-	logger     logger.Logger
-	storage    storage.Storage
-	saver      dumpsaver.DumpSaver
+	config *config.Config
+	logger logger.Logger
+	//storage storage.Storage
+	//saver   file.DumpSaver
 }
 
-func NewApp(logger logger.Logger) *App {
-	ctx, cancelFunc := context.WithCancel(context.Background())
+func NewApp(logger logger.Logger) (*App, error) {
 
 	config := config.LoadConfig()
 
-	storage := storage.NewMemStorage()
-	saver := dumpsaver.NewFileSaver(config.FileStoragePath, storage)
+	//, storage: storage, saver: saver
 
-	return &App{ctx: ctx, config: config, cancelFunc: cancelFunc, logger: logger, storage: storage, saver: saver}
+	return &App{config: config, logger: logger}, nil
 }
 
 func (app *App) Run() {
+
+	ctx, cancelFunc := context.WithCancel(context.Background())
+
+	var s storage.Storage
+
+	useDB := app.config.DatabaseDSN != ""
+
+	if !useDB {
+		s = memory.NewMemStorage()
+	} else {
+		var err error
+		s, err = db.NewPostgresClient(app.config.DatabaseDSN)
+		if err != nil {
+			app.logger.Errorw("Error", "err", err)
+			cancelFunc()
+		}
+	}
+
+	db, ok := s.(storage.DBStorage)
+
+	if ok {
+		db.RunMigrations(ctx)
+		defer func() {
+			if err := db.Close(); err != nil {
+				app.logger.Errorw("Error closing database connection:", "err", err)
+			} else {
+				app.logger.Infow("Database closed")
+			}
+		}()
+	}
+
+	saver := file.NewFileSaver(app.config.FileStoragePath, s)
 
 	// Channel to catch OS signals.
 	sigs := make(chan os.Signal, 1)
@@ -43,17 +73,19 @@ func (app *App) Run() {
 
 	go func() {
 		<-sigs
-		app.cancelFunc()
+		cancelFunc()
 	}()
 
 	app.logger.Infow("Starting app",
 		"restore", app.config.Restore,
 		"store_interval", app.config.StoreInterval,
-		"file_storage_path", app.config.FileStoragePath)
+		"file_storage_path", app.config.FileStoragePath,
+		"database_dsn", app.config.DatabaseDSN,
+	)
 
 	// restoring data from dump
-	if app.config.Restore {
-		err := app.saver.RestoreDump()
+	if !useDB && app.config.Restore {
+		err := saver.RestoreDump(ctx)
 		if err != nil {
 			app.logger.Error(err.Error())
 		} else {
@@ -66,14 +98,14 @@ func (app *App) Run() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		s := httpserver.NewHTTPServer(app.ctx, app.config.EndpointAddr, app.storage, app.logger)
+		s := httpserver.NewHTTPServer(ctx, app.config.EndpointAddr, s, app.logger)
 		if err := s.Run(); err != nil {
-			app.cancelFunc()
+			cancelFunc()
 		}
 	}()
 
-	// if store interval is not 0, launching regular dump saving task
-	if app.config.StoreInterval > 0 {
+	//if store interval is not 0, launching regular dump saving task
+	if !useDB && app.config.StoreInterval > 0 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -82,13 +114,13 @@ func (app *App) Run() {
 
 			for {
 				select {
-				case <-app.ctx.Done():
+				case <-ctx.Done():
 					app.logger.Info("Background saving task received cancellation signal. Exiting...")
 					return
 				case <-ticker.C:
-					// Place your periodic task logic here.
+					// Periodic task logic
 					app.logger.Info("Performing regular saving task")
-					app.saver.SaveDump()
+					saver.SaveDump(ctx)
 				}
 			}
 		}()
@@ -97,8 +129,8 @@ func (app *App) Run() {
 	wg.Wait()
 
 	// значение 0 делает запись синхронной
-	if app.config.StoreInterval == 0 {
-		err := app.saver.SaveDump()
+	if !useDB && app.config.StoreInterval == 0 {
+		err := saver.SaveDump(ctx)
 
 		if err != nil {
 			app.logger.Error(err)

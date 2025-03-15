@@ -11,36 +11,39 @@ import (
 
 type Collector struct {
 	PollInterval time.Duration
-	Data         map[string]metric.Metric
+	Data         sync.Map
 }
 
 func NewCollector(pollInterval time.Duration) *Collector {
 	return &Collector{
 		PollInterval: pollInterval,
-		Data:         make(map[string]metric.Metric),
 	}
 }
 
 func (c *Collector) updateGauge(metricName string, metricValue float64) {
-	m, exists := c.Data[metricName]
+	val, exists := c.Data.Load(metricName)
 
 	if !exists {
-		m = metric.NewGauge(metricName)
-		c.Data[metricName] = m
+		val = metric.NewGauge(metricName)
 	}
 
-	m.Update(metricValue)
+	if gauge, ok := val.(*metric.Gauge); ok {
+		gauge.Update(metricValue)
+	}
+	c.Data.Store(metricName, val)
 }
 
 func (c *Collector) updateCounter(metricName string, metricValue int64) {
-	m, exists := c.Data[metricName]
+	val, exists := c.Data.Load(metricName)
 
 	if !exists {
-		m = metric.NewCounter(metricName)
-		c.Data[metricName] = m
+		val = metric.NewCounter(metricName)
 	}
 
-	m.Update(metricValue)
+	if counter, ok := val.(*metric.Counter); ok {
+		counter.Update(metricValue)
+	}
+	c.Data.Store(metricName, val)
 
 }
 

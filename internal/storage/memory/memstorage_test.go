@@ -1,10 +1,12 @@
-package storage
+package memory
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"testing"
 
+	"github.com/dmitrijs2005/metric-alerting-service/internal/common"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,6 +41,7 @@ func TestMemStorage_Retrieve(t *testing.T) {
 
 	metric1 := &metric.Counter{Name: "counter1", Value: 1}
 	metric2 := &metric.Gauge{Name: "gauge1", Value: 3.14}
+	ctx := context.Background()
 
 	s := &MemStorage{
 		Data: map[string]metric.Metric{
@@ -65,7 +68,7 @@ func TestMemStorage_Retrieve(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			got, err := s.Retrieve(tt.args.metricType, tt.args.metricName)
+			got, err := s.Retrieve(ctx, tt.args.metricType, tt.args.metricName)
 
 			if !tt.wantErr {
 				assert.NoError(t, err, "Expected no error for existing metric")
@@ -81,6 +84,7 @@ func TestMemStorage_RetrieveAll(t *testing.T) {
 
 	metric1 := &metric.Counter{Name: "counter1", Value: 1}
 	metric2 := &metric.Gauge{Name: "gauge1", Value: 3.14}
+	ctx := context.Background()
 
 	s := &MemStorage{
 		Data: map[string]metric.Metric{
@@ -100,7 +104,7 @@ func TestMemStorage_RetrieveAll(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			got, err := s.RetrieveAll()
+			got, err := s.RetrieveAll(ctx)
 
 			assert.NoError(t, err)
 			assert.Equal(t, len(got), len(s.Data))
@@ -114,6 +118,7 @@ func TestMemStorage_Add(t *testing.T) {
 
 	metric1 := &metric.Counter{Name: "counter1", Value: 1}
 	metric2 := &metric.Gauge{Name: "gauge1", Value: 3.14}
+	ctx := context.Background()
 
 	type args struct {
 		metric metric.Metric
@@ -125,7 +130,7 @@ func TestMemStorage_Add(t *testing.T) {
 		err     string
 	}{
 		{name: "Add second metric", args: args{metric: metric2}, wantErr: false},
-		{name: "Add same metric, should be an error", args: args{metric: metric1}, wantErr: true, err: MetricAlreadyExists},
+		{name: "Add same metric, should be an error", args: args{metric: metric1}, wantErr: true, err: common.ErrorMetricAlreadyExists.Error()},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -137,7 +142,7 @@ func TestMemStorage_Add(t *testing.T) {
 				mu: sync.Mutex{},
 			}
 
-			err := s.Add(tt.args.metric)
+			err := s.Add(ctx, tt.args.metric)
 			if tt.wantErr {
 				assert.Error(t, err)
 				assert.ErrorContains(t, err, tt.err)
@@ -152,6 +157,8 @@ func TestMemStorage_Add(t *testing.T) {
 }
 
 func TestMemStorage_Update(t *testing.T) {
+
+	ctx := context.Background()
 
 	mcb := &metric.Counter{Name: "counter1", Value: 1}
 	mgb := &metric.Gauge{Name: "gauge1", Value: 1}
@@ -178,7 +185,7 @@ func TestMemStorage_Update(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := s.Update(tt.args.metric, tt.args.value)
+			err := s.Update(ctx, tt.args.metric, tt.args.value)
 			require.NoError(t, err)
 			key := getKey(tt.args.metric.GetType(), tt.args.metric.GetName())
 			assert.Equal(t, tt.wantValue, s.Data[key].GetValue())

@@ -10,18 +10,18 @@ import (
 )
 
 type MetricAgent struct {
-	collector collector.Collector
-	sender    sender.Sender
+	collector *collector.Collector
+	sender    *sender.Sender
 }
 
 func NewMetricAgent(pollInterval time.Duration, reportInterval time.Duration, serverURL string) *MetricAgent {
 
 	collector := collector.NewCollector(pollInterval)
-	sender := sender.NewSender(reportInterval, collector.Data, serverURL)
+	sender := sender.NewSender(reportInterval, &collector.Data, serverURL)
 
 	return &MetricAgent{
-		collector: *collector,
-		sender:    *sender,
+		collector: collector,
+		sender:    sender,
 	}
 }
 

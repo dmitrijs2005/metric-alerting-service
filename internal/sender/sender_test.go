@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dmitrijs2005/metric-alerting-service/internal/collector"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
 	"github.com/stretchr/testify/assert"
 )
@@ -36,7 +37,6 @@ func TestMetricAgent_SendMetric(t *testing.T) {
 			agent := &Sender{
 				ServerURL:      mockServer.URL,
 				ReportInterval: 10 * time.Second,
-				Data:           make(map[string]metric.Metric),
 			}
 
 			var wg sync.WaitGroup
@@ -47,4 +47,32 @@ func TestMetricAgent_SendMetric(t *testing.T) {
 			wg.Wait()
 		})
 	}
+}
+
+func TestMetricAgent_SendMetrics(t *testing.T) {
+
+	metric1 := &metric.Counter{Name: "counter1", Value: 1}
+	metric2 := &metric.Gauge{Name: "gauge1", Value: 1}
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodPost, r.Method, "Expected POST method")
+		assert.Equal(t, r.URL.Path, "/updates/", "Unexpected URL path")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer mockServer.Close()
+
+	collector := collector.NewCollector(1)
+
+	agent := &Sender{
+		ServerURL:      mockServer.URL,
+		ReportInterval: 10 * time.Second,
+	}
+
+	agent.Data = &collector.Data
+
+	agent.Data.Store(metric1.GetName(), metric1)
+	agent.Data.Store(metric2.GetName(), metric2)
+
+	agent.SendMetrics()
+
 }
