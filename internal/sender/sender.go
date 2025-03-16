@@ -3,6 +3,7 @@ package sender
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -71,13 +72,11 @@ func (s *Sender) SendMetric(m metric.Metric, wg *sync.WaitGroup) error {
 
 	_, err = zb.Write(jsonData)
 	if err != nil {
-		//fmt.Println("Error writing to buffer request:", err)
 		return err
 	}
 
 	err = zb.Close()
 	if err != nil {
-		//fmt.Println("Error closing buffer:", err)
 		return err
 	}
 
@@ -86,7 +85,6 @@ func (s *Sender) SendMetric(m metric.Metric, wg *sync.WaitGroup) error {
 	// Create a new HTTP request
 	req, err := http.NewRequest("POST", url, buf)
 	if err != nil {
-		//fmt.Println("Error creating request:", err)
 		return err
 	}
 
@@ -98,7 +96,6 @@ func (s *Sender) SendMetric(m metric.Metric, wg *sync.WaitGroup) error {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		//fmt.Println("Error sending request:", err)
 		return err
 	}
 	defer resp.Body.Close()
@@ -194,27 +191,19 @@ func (s *Sender) SendMetrics() error {
 
 }
 
-func (s *Sender) Run(wg *sync.WaitGroup) {
+func (s *Sender) Run(ctx context.Context, wg *sync.WaitGroup) {
 
 	defer wg.Done()
 
 	for {
 
-		err := s.SendMetrics()
+		_, err := common.RetryWithResult(ctx, func() (interface{}, error) {
+			err := s.SendMetrics()
+			return nil, err
+		})
+
 		if err != nil {
-			for i := 0; i < MaxRetries; i++ {
-				s.WriteToConsole(err.Error())
-				if common.IsErrorRetriable(err) {
-					time.Sleep(time.Duration(i)*RetryAddTime + 1*time.Second)
-					err := s.SendMetrics()
-					if err == nil {
-						break
-					}
-				} else {
-					s.WriteToConsole("Error is not retriable, waiting...")
-					break
-				}
-			}
+			s.WriteToConsole(err.Error())
 		}
 
 		time.Sleep(s.ReportInterval)

@@ -54,7 +54,7 @@ func (c *PostgresClient) RetrieveAll(ctx context.Context) ([]metric.Metric, erro
 
 	result := make([]metric.Metric, 0)
 
-	rows, err := retryWithResult(ctx, func() (*sql.Rows, error) {
+	rows, err := common.RetryWithResult(ctx, func() (*sql.Rows, error) {
 		r, err := c.db.QueryContext(ctx, s)
 		return r, err
 	})
@@ -125,7 +125,7 @@ func (c *PostgresClient) ExecuteAdd(ctx context.Context, exec DBExecutor, m metr
 
 	s := "insert into metrics (metric_type, metric_name, metric_value_int, metric_value_float) values ($1, $2, $3, $4)"
 
-	_, err := retryWithResult(ctx, func() (sql.Result, error) {
+	_, err := common.RetryWithResult(ctx, func() (sql.Result, error) {
 		r, err := exec.ExecContext(ctx, s, m.GetType(), m.GetName(), mvi, mvf)
 		return r, err
 	})
@@ -151,7 +151,7 @@ func (c *PostgresClient) ExecuteUpdate(ctx context.Context, exec DBExecutor, m m
 
 	s += "where metric_type = $2 and metric_name = $3"
 
-	_, err := retryWithResult(ctx, func() (sql.Result, error) {
+	_, err := common.RetryWithResult(ctx, func() (sql.Result, error) {
 		r, err := exec.ExecContext(ctx, s, v, m.GetType(), m.GetName())
 		return r, err
 	})
@@ -171,7 +171,7 @@ func (c *PostgresClient) ExecuteRetrieve(ctx context.Context, exec DBExecutor, t
 
 	s := "select metric_value_int, metric_value_float from metrics where metric_type=$1 and metric_name=$2"
 
-	_, err := retryWithResult(ctx, func() (*sql.Row, error) {
+	_, err := common.RetryWithResult(ctx, func() (*sql.Row, error) {
 		r := exec.QueryRowContext(ctx, s, t, n)
 		err := r.Scan(&mvi, &mvf)
 		return r, err

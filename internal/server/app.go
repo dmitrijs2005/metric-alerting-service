@@ -20,16 +20,11 @@ import (
 type App struct {
 	config *config.Config
 	logger logger.Logger
-	//storage storage.Storage
-	//saver   file.DumpSaver
 }
 
 func NewApp(logger logger.Logger) (*App, error) {
 
 	config := config.LoadConfig()
-
-	//, storage: storage, saver: saver
-
 	return &App{config: config, logger: logger}, nil
 }
 

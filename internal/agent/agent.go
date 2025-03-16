@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -27,13 +28,15 @@ func NewMetricAgent(pollInterval time.Duration, reportInterval time.Duration, se
 
 func (a *MetricAgent) Run() {
 
+	ctx := context.Background()
+
 	wg := sync.WaitGroup{}
 
 	wg.Add(1)
 	go a.collector.Run(&wg)
 
 	wg.Add(1)
-	go a.sender.Run(&wg)
+	go a.sender.Run(ctx, &wg)
 
 	wg.Wait()
 
