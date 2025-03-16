@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"sync"
@@ -20,6 +21,7 @@ import (
 type App struct {
 	config *config.Config
 	logger logger.Logger
+	saver  *file.FileSaver
 }
 
 func NewApp(logger logger.Logger) (*App, error) {
@@ -28,40 +30,7 @@ func NewApp(logger logger.Logger) (*App, error) {
 	return &App{config: config, logger: logger}, nil
 }
 
-func (app *App) Run() {
-
-	ctx, cancelFunc := context.WithCancel(context.Background())
-
-	var s storage.Storage
-
-	useDB := app.config.DatabaseDSN != ""
-
-	if !useDB {
-		s = memory.NewMemStorage()
-	} else {
-		var err error
-		s, err = db.NewPostgresClient(app.config.DatabaseDSN)
-		if err != nil {
-			app.logger.Errorw("Error", "err", err)
-			cancelFunc()
-		}
-	}
-
-	db, ok := s.(storage.DBStorage)
-
-	if ok {
-		db.RunMigrations(ctx)
-		defer func() {
-			if err := db.Close(); err != nil {
-				app.logger.Errorw("Error closing database connection:", "err", err)
-			} else {
-				app.logger.Infow("Database closed")
-			}
-		}()
-	}
-
-	saver := file.NewFileSaver(app.config.FileStoragePath, s)
-
+func (app *App) initSignalHandler(cancelFunc context.CancelFunc) {
 	// Channel to catch OS signals.
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
@@ -70,26 +39,73 @@ func (app *App) Run() {
 		<-sigs
 		cancelFunc()
 	}()
+}
 
-	app.logger.Infow("Starting app",
-		"restore", app.config.Restore,
-		"store_interval", app.config.StoreInterval,
-		"file_storage_path", app.config.FileStoragePath,
-		"database_dsn", app.config.DatabaseDSN,
-	)
+func (app *App) initDumpSyncAgent(s storage.Storage) (*file.FileSaver, error) {
+	return file.NewFileSaver(app.config.FileStoragePath, s), nil
+}
 
-	// restoring data from dump
-	if !useDB && app.config.Restore {
-		err := saver.RestoreDump(ctx)
+func (app *App) initStorage(ctx context.Context) (storage.Storage, error) {
+
+	var s storage.Storage
+
+	if app.config.DatabaseDSN == "" {
+
+		s = memory.NewMemStorage()
+	} else {
+
+		var err error
+
+		pgClient, err := db.NewPostgresClient(app.config.DatabaseDSN)
 		if err != nil {
-			app.logger.Error(err.Error())
-		} else {
-			app.logger.Info("Dump restored successfully!!!")
+			return nil, err
 		}
+
+		if err := pgClient.RunMigrations(ctx); err != nil {
+			return nil, err
+		}
+
+		s = pgClient
+
 	}
 
-	var wg sync.WaitGroup
+	return s, nil
 
+}
+
+func (app *App) closeDBIfNeeded(s storage.Storage) (bool, error) {
+
+	db, ok := s.(storage.DBStorage)
+	if ok {
+		err := db.Close()
+		return true, err
+	}
+
+	return false, nil
+
+}
+
+func (app *App) restoreDumpIfNeeded(ctx context.Context, a *file.FileSaver, s storage.Storage) (bool, error) {
+
+	if !app.config.Restore {
+		return false, nil
+	}
+
+	_, ok := s.(storage.DBStorage)
+	if ok {
+		return false, nil
+	}
+
+	err := a.RestoreDump(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+
+}
+
+func (app *App) startHTTPServer(ctx context.Context, cancelFunc context.CancelFunc, wg *sync.WaitGroup, s storage.Storage) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -98,40 +114,122 @@ func (app *App) Run() {
 			cancelFunc()
 		}
 	}()
+}
+
+func (app *App) saveDump(ctx context.Context, a *file.FileSaver) {
+
+	err := a.SaveDump(ctx)
+
+	if err != nil {
+		app.logger.Error(err)
+	} else {
+		app.logger.Info("Dump saved successfully")
+	}
+
+}
+
+func (app *App) initPeriodicDumpSaveIfNeeded(ctx context.Context, s storage.Storage, a *file.FileSaver, wg *sync.WaitGroup) {
+
+	_, ok := s.(storage.DBStorage)
+	if ok {
+		return
+	}
+
+	if app.config.StoreInterval == 0 {
+		return
+	}
 
 	//if store interval is not 0, launching regular dump saving task
-	if !useDB && app.config.StoreInterval > 0 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			ticker := time.NewTicker(app.config.StoreInterval)
-			defer ticker.Stop()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		ticker := time.NewTicker(app.config.StoreInterval)
+		defer ticker.Stop()
 
-			for {
-				select {
-				case <-ctx.Done():
-					app.logger.Info("Background saving task received cancellation signal. Exiting...")
-					return
-				case <-ticker.C:
-					// Periodic task logic
-					app.logger.Info("Performing regular saving task")
-					saver.SaveDump(ctx)
-				}
+		for {
+			select {
+			case <-ctx.Done():
+				app.logger.Info("Background saving task received cancellation signal. Exiting...")
+				return
+			case <-ticker.C:
+				// Periodic task logic
+				app.logger.Info("Performing regular saving task")
+				app.saveDump(ctx, a)
 			}
-		}()
+		}
+	}()
+}
+
+func (app *App) saveDumpIfNeeded(ctx context.Context, s storage.Storage, a *file.FileSaver) {
+
+	_, ok := s.(storage.DBStorage)
+	if ok {
+		return
 	}
+
+	// значение 0 делает запись синхронной
+	if app.config.StoreInterval != 0 {
+		return
+	}
+
+	app.saveDump(ctx, a)
+}
+
+func (app *App) Run() {
+
+	ctx, cancelFunc := context.WithCancel(context.Background())
+
+	app.logger.Infow("Starting app",
+		"restore", app.config.Restore,
+		"store_interval", app.config.StoreInterval,
+		"file_storage_path", app.config.FileStoragePath,
+		"database_dsn", app.config.DatabaseDSN,
+	)
+
+	app.initSignalHandler(cancelFunc)
+
+	s, err := app.initStorage(ctx)
+	if err != nil {
+		app.logger.Errorw("Storage initialization error", "err", err)
+		cancelFunc()
+		return
+	}
+
+	a, err := app.initDumpSyncAgent(s)
+	if err != nil {
+		app.logger.Errorw("Dump sync agent initialization error", "err", err)
+		cancelFunc()
+		return
+	}
+
+	restored, err := app.restoreDumpIfNeeded(ctx, a, s)
+	if err != nil {
+		fmt.Println(restored, err)
+		app.logger.Errorw("Dump restore error", "err", err)
+	}
+
+	if restored {
+		app.logger.Infow("Dump restored successfully")
+	}
+
+	defer func() {
+		closed, err := app.closeDBIfNeeded(s)
+		if err != nil {
+			app.logger.Errorw("Error closing database connection:", "err", err)
+		} else {
+			if closed {
+				app.logger.Infow("Database closed")
+			}
+		}
+	}()
+
+	var wg sync.WaitGroup
+
+	app.startHTTPServer(ctx, cancelFunc, &wg, s)
+	app.initPeriodicDumpSaveIfNeeded(ctx, s, a, &wg)
 
 	wg.Wait()
 
-	// значение 0 делает запись синхронной
-	if !useDB && app.config.StoreInterval == 0 {
-		err := saver.SaveDump(ctx)
-
-		if err != nil {
-			app.logger.Error(err)
-		} else {
-			app.logger.Info("Dump saved successfully")
-		}
-	}
+	app.saveDumpIfNeeded(ctx, s, a)
 
 }
