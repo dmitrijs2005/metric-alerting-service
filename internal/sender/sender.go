@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -16,22 +17,19 @@ import (
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
 )
 
-const (
-	MaxRetries   = 3
-	RetryAddTime = 2 * time.Second
-)
-
 type Sender struct {
 	ReportInterval time.Duration
 	ServerURL      string
 	Data           *sync.Map
+	Key            string
 }
 
-func NewSender(reportInterval time.Duration, data *sync.Map, serverURL string) *Sender {
+func NewSender(reportInterval time.Duration, data *sync.Map, serverURL string, key string) *Sender {
 	return &Sender{
 		ReportInterval: reportInterval,
 		Data:           data,
 		ServerURL:      serverURL,
+		Key:            key,
 	}
 }
 
@@ -107,6 +105,15 @@ func (s *Sender) WriteToConsole(msg string) {
 	fmt.Printf("%v %s \n", time.Now(), msg)
 }
 
+// func (s *Sender) CreateSignature(body []byte) ([]byte, error) {
+// 	h := hmac.New(sha256.New, []byte(s.Key))
+// 	_, err := h.Write(body)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	return h.Sum(nil), nil
+// }
+
 func (s *Sender) SendMetrics() error {
 
 	url := s.ServerURL
@@ -176,6 +183,15 @@ func (s *Sender) SendMetrics() error {
 	// Set the content type to application/json
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Encoding", "gzip")
+
+	// signing if key is specified
+	if s.Key != "" {
+		sign, err := common.CreateAes256Signature(jsonData, s.Key)
+		if err != nil {
+			return common.NewWrappedError("Error signing request", err)
+		}
+		req.Header.Set("HashSHA256", base64.RawStdEncoding.EncodeToString(sign))
+	}
 
 	// Send the request using the default HTTP client
 	client := &http.Client{}

@@ -17,12 +17,13 @@ func TestParseEnv(t *testing.T) {
 		addr           string
 		reportInterval string
 		pollInterval   string
+		key            string
 		expectPanic    bool
 		expected       *Config
 	}{
-		{"Test1 OK", "127.0.0.1:9090", "10", "5", false, &Config{"127.0.0.1:9090", 10 * time.Second, 5 * time.Second}},
-		{"Test2 incorrect report interval", "127.0.0.1:9090", "a", "5", true, &Config{}},
-		{"Test2 incorrect report interval", "127.0.0.1:9090", "20", "a", true, &Config{}},
+		{"Test1 OK", "127.0.0.1:9090", "10", "5", "secretkey", false, &Config{"127.0.0.1:9090", 10 * time.Second, 5 * time.Second, "secretkey"}},
+		{"Test2 incorrect report interval", "127.0.0.1:9090", "a", "5", "secretkey", true, &Config{}},
+		{"Test2 incorrect report interval", "127.0.0.1:9090", "20", "a", "secretkey", true, &Config{}},
 	}
 
 	for _, tt := range tests {
@@ -31,6 +32,7 @@ func TestParseEnv(t *testing.T) {
 			oldAddr := os.Getenv("ADDRESS")
 			oldRI := os.Getenv("REPORT_INTERVAL")
 			oldPI := os.Getenv("POLL_INTERVAL")
+			oldKey := os.Getenv("KEY")
 
 			if err := os.Setenv("ADDRESS", tt.addr); err != nil {
 				panic(err)
@@ -39,6 +41,9 @@ func TestParseEnv(t *testing.T) {
 				panic(err)
 			}
 			if err := os.Setenv("POLL_INTERVAL", tt.pollInterval); err != nil {
+				panic(err)
+			}
+			if err := os.Setenv("KEY", tt.key); err != nil {
 				panic(err)
 			}
 
@@ -59,6 +64,9 @@ func TestParseEnv(t *testing.T) {
 					panic(err)
 				}
 				if err = os.Setenv("POLL_INTERVAL", oldPI); err != nil {
+					panic(err)
+				}
+				if err = os.Setenv("KEY", oldKey); err != nil {
 					panic(err)
 				}
 

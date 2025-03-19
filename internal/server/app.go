@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"sync"
@@ -109,7 +108,7 @@ func (app *App) startHTTPServer(ctx context.Context, cancelFunc context.CancelFu
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		s := httpserver.NewHTTPServer(ctx, app.config.EndpointAddr, s, app.logger)
+		s := httpserver.NewHTTPServer(ctx, app.config.EndpointAddr, app.config.Key, s, app.logger)
 		if err := s.Run(); err != nil {
 			cancelFunc()
 		}
@@ -204,7 +203,6 @@ func (app *App) Run() {
 
 	restored, err := app.restoreDumpIfNeeded(ctx, a, s)
 	if err != nil {
-		fmt.Println(restored, err)
 		app.logger.Errorw("Dump restore error", "err", err)
 	}
 

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"time"
 
+	"github.com/dmitrijs2005/metric-alerting-service/internal/agent/config"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/collector"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/sender"
 )
@@ -15,10 +15,10 @@ type MetricAgent struct {
 	sender    *sender.Sender
 }
 
-func NewMetricAgent(pollInterval time.Duration, reportInterval time.Duration, serverURL string) *MetricAgent {
+func NewMetricAgent(cfg *config.Config) *MetricAgent {
 
-	collector := collector.NewCollector(pollInterval)
-	sender := sender.NewSender(reportInterval, &collector.Data, serverURL)
+	collector := collector.NewCollector(cfg.PollInterval)
+	sender := sender.NewSender(cfg.ReportInterval, &collector.Data, cfg.EndpointAddr, cfg.Key)
 
 	return &MetricAgent{
 		collector: collector,
