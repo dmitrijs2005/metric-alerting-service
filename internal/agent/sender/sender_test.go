@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dmitrijs2005/metric-alerting-service/internal/collector"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/agent/collector"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
 	"github.com/stretchr/testify/assert"
 )
