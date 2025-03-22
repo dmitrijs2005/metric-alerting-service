@@ -3,6 +3,7 @@ package common
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"os"
 	"time"
@@ -69,4 +70,8 @@ func RetryWithResult[T any](ctx context.Context, request func() (T, error)) (T, 
 	}
 
 	return result, err
+}
+
+func WriteToConsole(msg string) {
+	fmt.Printf("%v %s \n", time.Now(), msg)
 }

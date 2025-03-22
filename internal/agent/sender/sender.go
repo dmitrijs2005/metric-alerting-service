@@ -101,19 +101,6 @@ func (s *Sender) SendMetric(m metric.Metric, wg *sync.WaitGroup) error {
 	return nil
 }
 
-func (s *Sender) WriteToConsole(msg string) {
-	fmt.Printf("%v %s \n", time.Now(), msg)
-}
-
-// func (s *Sender) CreateSignature(body []byte) ([]byte, error) {
-// 	h := hmac.New(sha256.New, []byte(s.Key))
-// 	_, err := h.Write(body)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	return h.Sum(nil), nil
-// }
-
 func (s *Sender) SendMetrics() error {
 
 	url := s.ServerURL
@@ -172,7 +159,7 @@ func (s *Sender) SendMetrics() error {
 
 	url = fmt.Sprintf("%s/updates/", url)
 
-	s.WriteToConsole("sending...")
+	common.WriteToConsole("sending...")
 
 	// Create a new HTTP request
 	req, err := http.NewRequest("POST", url, buf)
@@ -201,7 +188,7 @@ func (s *Sender) SendMetrics() error {
 	}
 	defer resp.Body.Close()
 
-	s.WriteToConsole("reply received...")
+	common.WriteToConsole("reply received...")
 
 	return nil
 
@@ -213,16 +200,19 @@ func (s *Sender) Run(ctx context.Context, wg *sync.WaitGroup) {
 
 	for {
 
-		_, err := common.RetryWithResult(ctx, func() (interface{}, error) {
-			err := s.SendMetrics()
-			return nil, err
-		})
+		select {
+		case <-time.After(s.ReportInterval):
+			_, err := common.RetryWithResult(ctx, func() (interface{}, error) {
+				err := s.SendMetrics()
+				return nil, err
+			})
 
-		if err != nil {
-			s.WriteToConsole(err.Error())
+			if err != nil {
+				common.WriteToConsole(err.Error())
+			}
+		case <-ctx.Done():
+			return
 		}
-
-		time.Sleep(s.ReportInterval)
 
 	}
 

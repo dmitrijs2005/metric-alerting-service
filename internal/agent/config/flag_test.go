@@ -19,7 +19,7 @@ func TestParseFlags(t *testing.T) {
 		expectPanic bool
 		expected    *Config
 	}{
-		{"Test1 OK", []string{"cmd", "-a", "127.0.0.1:9090", "-r", "20", "-p", "5", "-k", "secretkey"}, false, &Config{"127.0.0.1:9090", 20 * time.Second, 5 * time.Second, "secretkey"}},
+		{"Test1 OK", []string{"cmd", "-a", "127.0.0.1:9090", "-r", "20", "-p", "5", "-k", "secretkey", "-l", "3"}, false, &Config{"127.0.0.1:9090", 20 * time.Second, 5 * time.Second, "secretkey", 3}},
 		{"Test2 incorrect report interval", []string{"cmd", "-a", "127.0.0.1:9090", "-r", "a", "-p", "5"}, true, &Config{}},
 		{"Test3 incorrect poll interval", []string{"cmd", "-a", "127.0.0.1:9090", "-r", "20", "-p", "a"}, true, &Config{}},
 	}

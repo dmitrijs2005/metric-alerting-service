@@ -2,12 +2,15 @@ package agent
 
 import (
 	"context"
-	"fmt"
+	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 
+	"github.com/dmitrijs2005/metric-alerting-service/internal/agent/collector"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/agent/config"
-	"github.com/dmitrijs2005/metric-alerting-service/internal/collector"
-	"github.com/dmitrijs2005/metric-alerting-service/internal/sender"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/agent/sender"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/common"
 )
 
 type MetricAgent struct {
@@ -26,20 +29,34 @@ func NewMetricAgent(cfg *config.Config) *MetricAgent {
 	}
 }
 
+func (a *MetricAgent) initSignalHandler(cancelFunc context.CancelFunc) {
+	// Channel to catch OS signals.
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		<-sigs
+		cancelFunc()
+	}()
+}
+
 func (a *MetricAgent) Run() {
 
-	ctx := context.Background()
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	a.initSignalHandler(cancelFunc)
 
 	wg := sync.WaitGroup{}
 
 	wg.Add(1)
-	go a.collector.Run(&wg)
+	go a.collector.Run(ctx, &wg)
 
 	wg.Add(1)
 	go a.sender.Run(ctx, &wg)
 
+	common.WriteToConsole("Agent started...")
+
 	wg.Wait()
 
-	fmt.Println("Finished...")
+	common.WriteToConsole("Agent finished...")
 
 }

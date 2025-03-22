@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"context"
 	"math/rand/v2"
 	"runtime"
 	"sync"
@@ -91,14 +92,17 @@ func (c *Collector) updateAdditionalMetrics() {
 	c.updateCounter("PollCount", 1)
 }
 
-func (c *Collector) Run(wg *sync.WaitGroup) {
+func (c *Collector) Run(ctx context.Context, wg *sync.WaitGroup) {
 
 	defer wg.Done()
 
-	for {
+	select {
+	case <-time.After(c.PollInterval):
 		ms := c.collectMemStats()
 		c.updateMemStats(ms)
 		c.updateAdditionalMetrics()
-		time.Sleep(c.PollInterval)
+	case <-ctx.Done():
+		return
 	}
+
 }

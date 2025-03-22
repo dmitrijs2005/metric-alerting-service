@@ -27,4 +27,13 @@ func parseEnv(config *Config) {
 	if envVar, ok := os.LookupEnv("KEY"); ok && envVar != "" {
 		config.Key = envVar
 	}
+
+	if envVar, ok := os.LookupEnv("RATE_LIMIT"); ok && envVar != "" {
+		val, err := strconv.Atoi(envVar)
+		if err != nil {
+			panic(err)
+		}
+		config.SendRateLimit = val
+	}
+
 }
