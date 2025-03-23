@@ -3,7 +3,6 @@ package sender
 import (
 	"net/http"
 	"net/http/httptest"
-	"sync"
 	"testing"
 	"time"
 
@@ -39,12 +38,8 @@ func TestMetricAgent_SendMetric(t *testing.T) {
 				ReportInterval: 10 * time.Second,
 			}
 
-			var wg sync.WaitGroup
-			wg.Add(1)
+			agent.SendMetric(tt.metric)
 
-			agent.SendMetric(tt.metric, &wg)
-
-			wg.Wait()
 		})
 	}
 }
@@ -73,6 +68,6 @@ func TestMetricAgent_SendMetrics(t *testing.T) {
 	agent.Data.Store(metric1.GetName(), metric1)
 	agent.Data.Store(metric2.GetName(), metric2)
 
-	agent.SendMetrics()
+	agent.SendAllMetricsInOneBatch()
 
 }
