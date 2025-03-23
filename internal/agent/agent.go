@@ -21,7 +21,7 @@ type MetricAgent struct {
 func NewMetricAgent(cfg *config.Config) *MetricAgent {
 
 	collector := collector.NewCollector(cfg.PollInterval)
-	sender := sender.NewSender(cfg.ReportInterval, &collector.Data, cfg.EndpointAddr, cfg.Key)
+	sender := sender.NewSender(&collector.Data, cfg.ReportInterval, cfg.EndpointAddr, cfg.Key, cfg.SendRateLimit)
 
 	return &MetricAgent{
 		collector: collector,
@@ -48,7 +48,10 @@ func (a *MetricAgent) Run() {
 	wg := sync.WaitGroup{}
 
 	wg.Add(1)
-	go a.collector.Run(ctx, &wg)
+	go a.collector.RunStatUpdater(ctx, &wg)
+
+	wg.Add(1)
+	go a.collector.RunPSUtilMetricsUpdater(ctx, &wg)
 
 	wg.Add(1)
 	go a.sender.Run(ctx, &wg)

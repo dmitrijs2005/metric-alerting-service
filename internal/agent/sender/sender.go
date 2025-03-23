@@ -22,25 +22,36 @@ type Sender struct {
 	ServerURL      string
 	Data           *sync.Map
 	Key            string
+	SendRateLimit  int
+	Jobs           chan metric.Metric
 }
 
-func NewSender(reportInterval time.Duration, data *sync.Map, serverURL string, key string) *Sender {
+func NewSender(data *sync.Map, reportInterval time.Duration, serverURL string, key string, sendRateLimit int) *Sender {
 	return &Sender{
 		ReportInterval: reportInterval,
 		Data:           data,
 		ServerURL:      serverURL,
 		Key:            key,
+		SendRateLimit:  sendRateLimit,
+		Jobs:           make(chan metric.Metric),
 	}
 }
 
-func (s *Sender) SendMetric(m metric.Metric, wg *sync.WaitGroup) error {
-	defer wg.Done()
+func (s *Sender) worker(ind int, jobs <-chan metric.Metric) {
 
-	url := s.ServerURL
-	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
-		url = "http://" + url
+	label := fmt.Sprintf("Worker #%d", ind+1)
+
+	common.WriteToConsole(fmt.Sprintf("%s started", label))
+	defer common.WriteToConsole(fmt.Sprintf("%s exited", label))
+
+	for j := range jobs {
+		s.SendMetric(j)
+		common.WriteToConsole(fmt.Sprintf("%s sent metric %s", label, j.GetName()))
 	}
 
+}
+
+func (s *Sender) MetricToDto(m metric.Metric) (*dto.Metrics, error) {
 	data := &dto.Metrics{ID: m.GetName(), MType: string(m.GetType())}
 
 	if m.GetType() == metric.MetricTypeCounter {
@@ -48,15 +59,29 @@ func (s *Sender) SendMetric(m metric.Metric, wg *sync.WaitGroup) error {
 		if ok {
 			data.Delta = &v
 		} else {
-			return common.ErrorTypeConversion
+			return nil, common.ErrorTypeConversion
 		}
 	} else if m.GetType() == metric.MetricTypeGauge {
 		v, ok := m.GetValue().(float64)
 		if ok {
 			data.Value = &v
 		} else {
-			return common.ErrorTypeConversion
+			return nil, common.ErrorTypeConversion
 		}
+	}
+	return data, nil
+}
+
+func (s *Sender) SendMetric(m metric.Metric) error {
+
+	url := s.ServerURL
+	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
+		url = "http://" + url
+	}
+
+	data, err := s.MetricToDto(m)
+	if err != nil {
+		return err
 	}
 
 	// Convert the data to JSON
@@ -101,7 +126,7 @@ func (s *Sender) SendMetric(m metric.Metric, wg *sync.WaitGroup) error {
 	return nil
 }
 
-func (s *Sender) SendMetrics() error {
+func (s *Sender) SendAllMetricsInOneBatch() error {
 
 	url := s.ServerURL
 	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
@@ -115,23 +140,12 @@ func (s *Sender) SendMetrics() error {
 
 		// Convert interface{} to *metric.Counter and update value
 		if m, ok := val.(metric.Metric); ok {
-			item := &dto.Metrics{ID: m.GetName(), MType: string(m.GetType())}
+			item, err := s.MetricToDto(m)
 
-			if m.GetType() == metric.MetricTypeCounter {
-				v, ok := m.GetValue().(int64)
-				if ok {
-					item.Delta = &v
-				} else {
-					return false
-				}
-			} else if m.GetType() == metric.MetricTypeGauge {
-				v, ok := m.GetValue().(float64)
-				if ok {
-					item.Value = &v
-				} else {
-					return false
-				}
+			if err != nil {
+				common.WriteToConsole(fmt.Sprintf("Error converting metric to DTO: %v", err))
 			}
+
 			data = append(data, item)
 		}
 
@@ -194,26 +208,51 @@ func (s *Sender) SendMetrics() error {
 
 }
 
+func (s *Sender) SendAllMetrics() error {
+	// Concurrent reading (safe)
+	s.Data.Range(func(key, val interface{}) bool {
+		// Convert interface{} to *metric.Counter and update value
+		if m, ok := val.(metric.Metric); ok {
+			s.Jobs <- m
+		}
+		return true
+	})
+	return nil
+}
+
 func (s *Sender) Run(ctx context.Context, wg *sync.WaitGroup) {
 
 	defer wg.Done()
 
-	for {
+	var workerWg sync.WaitGroup
+	for i := 0; i < s.SendRateLimit; i++ {
+		workerWg.Add(1)
+		go func() {
+			defer workerWg.Done()
+			s.worker(i, s.Jobs)
+		}()
+	}
 
+loop:
+	for {
 		select {
 		case <-time.After(s.ReportInterval):
-			_, err := common.RetryWithResult(ctx, func() (interface{}, error) {
-				err := s.SendMetrics()
-				return nil, err
-			})
+			{
+				_, err := common.RetryWithResult(ctx, func() (interface{}, error) {
+					err := s.SendAllMetrics()
+					return nil, err
+				})
 
-			if err != nil {
-				common.WriteToConsole(err.Error())
+				if err != nil {
+					common.WriteToConsole(err.Error())
+				}
 			}
 		case <-ctx.Done():
-			return
+			break loop
 		}
-
 	}
+
+	close(s.Jobs)
+	workerWg.Wait()
 
 }

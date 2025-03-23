@@ -2,12 +2,16 @@ package collector
 
 import (
 	"context"
+	"fmt"
 	"math/rand/v2"
 	"runtime"
 	"sync"
 	"time"
 
+	"github.com/dmitrijs2005/metric-alerting-service/internal/common"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
+	"github.com/shirou/gopsutil/v4/cpu"
+	"github.com/shirou/gopsutil/v4/mem"
 )
 
 type Collector struct {
@@ -92,7 +96,7 @@ func (c *Collector) updateAdditionalMetrics() {
 	c.updateCounter("PollCount", 1)
 }
 
-func (c *Collector) Run(ctx context.Context, wg *sync.WaitGroup) {
+func (c *Collector) RunStatUpdater(ctx context.Context, wg *sync.WaitGroup) {
 
 	defer wg.Done()
 
@@ -103,6 +107,47 @@ func (c *Collector) Run(ctx context.Context, wg *sync.WaitGroup) {
 		c.updateAdditionalMetrics()
 	case <-ctx.Done():
 		return
+	}
+
+}
+
+func (c *Collector) RunPSUtilMetricsUpdater(ctx context.Context, wg *sync.WaitGroup) {
+
+	defer wg.Done()
+
+	select {
+	case <-time.After(c.PollInterval):
+		c.updatePSUtilsMemoryMetrics(ctx)
+		c.updatePSUtilsCPUMetrics(ctx)
+	case <-ctx.Done():
+		return
+	}
+
+}
+
+func (c *Collector) updatePSUtilsMemoryMetrics(ctx context.Context) {
+
+	v, err := mem.VirtualMemoryWithContext(ctx)
+	if err != nil {
+		common.WriteToConsole("Error reading GOPSUTIL memory data")
+		return
+	}
+	c.updateGauge("TotalMemory", float64(v.Total))
+	c.updateGauge("FreeMemory", float64(v.Free))
+
+}
+
+func (c *Collector) updatePSUtilsCPUMetrics(ctx context.Context) {
+
+	percentages, err := cpu.PercentWithContext(ctx, time.Second, true)
+	if err != nil {
+		common.WriteToConsole("Error reading GOPSUTIL CPU data")
+		return
+	}
+
+	for i, perc := range percentages {
+		metricName := fmt.Sprintf("CPUutilization%d", i+1)
+		c.updateGauge(metricName, perc)
 	}
 
 }
