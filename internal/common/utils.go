@@ -7,6 +7,9 @@ import (
 	"net"
 	"os"
 	"time"
+
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // tries to detect if there is a point to retry
@@ -14,12 +17,6 @@ func isErrorRetriable(err error) bool {
 
 	if err == nil {
 		return false
-	}
-
-	// checking if error is network-related
-	var netErr *net.OpError
-	if errors.As(err, &netErr) {
-		return true
 	}
 
 	// checking if syscall error (connect refused)
@@ -30,6 +27,21 @@ func isErrorRetriable(err error) bool {
 
 	// connection timeout
 	if errors.Is(err, os.ErrDeadlineExceeded) {
+		return true
+	}
+
+	// Проверка PostgreSQL спец. ошибок
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		// Class 08 - Connection Exception
+		if pgerrcode.IsConnectionException(pgErr.Code) {
+			return true
+		}
+	}
+
+	// checking if error is network-related
+	var netErr *net.OpError
+	if errors.As(err, &netErr) && netErr.Temporary() {
 		return true
 	}
 
