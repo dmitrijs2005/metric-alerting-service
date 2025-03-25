@@ -14,38 +14,62 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-func (s *HTTPServer) updateMetric(ctx context.Context, metricType string, metricName string, metricValue interface{}) (metric.Metric, error) {
+func (s *HTTPServer) retrieveMetric(ctx context.Context, metricType string, metricName string) (metric.Metric, error) {
+	return s.Storage.Retrieve(ctx, metric.MetricType(metricType), metricName)
+}
 
-	m, err := s.Storage.Retrieve(ctx, metric.MetricType(metricType), metricName)
+func (s *HTTPServer) updateMetric(ctx context.Context, m metric.Metric, metricValue any) error {
+	return s.Storage.Update(ctx, m, metricValue)
+}
+
+func (s *HTTPServer) addNewMetric(ctx context.Context, metricType string, metricName string, metricValue any) (metric.Metric, error) {
+	m, err := s.newMetricWithValue(metricType, metricName, metricValue)
+	if err != nil {
+		return nil, err
+	}
+	err = s.Storage.Add(ctx, m)
+	if err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (s *HTTPServer) newMetricWithValue(metricType string, metricName string, metricValue any) (metric.Metric, error) {
+	m, err := metric.NewMetric(metric.MetricType(metricType), metricName)
+	if err != nil {
+		return nil, err
+	}
+
+	if gauge, ok := m.(*metric.Gauge); ok {
+		if err := gauge.Update(metricValue); err != nil {
+			return nil, err
+		}
+	} else if counter, ok := m.(*metric.Counter); ok {
+		if err := counter.Update(metricValue); err != nil {
+			return nil, err
+		}
+	} else {
+		return nil, metric.ErrorInvalidMetricType
+	}
+
+	return m, nil
+}
+
+func (s *HTTPServer) updateMetricByValue(ctx context.Context, metricType string, metricName string, metricValue interface{}) (metric.Metric, error) {
+
+	m, err := s.retrieveMetric(ctx, metricType, metricName)
 
 	if err != nil {
 		if !errors.Is(err, common.ErrorMetricDoesNotExist) {
 			return nil, err
 		} else {
-			m, err = metric.NewMetric(metric.MetricType(metricType), metricName)
-			if err != nil {
-				return nil, err
-			}
-
-			if gauge, ok := m.(*metric.Gauge); ok {
-				if err := gauge.Update(metricValue); err != nil {
-					return nil, err
-				}
-			} else if counter, ok := m.(*metric.Counter); ok {
-				if err := counter.Update(metricValue); err != nil {
-					return nil, err
-				}
-			} else {
-				return nil, metric.ErrorInvalidMetricType
-			}
-
-			err = s.Storage.Add(ctx, m)
+			m, err = s.addNewMetric(ctx, metricType, metricName, metricValue)
 			if err != nil {
 				return nil, err
 			}
 		}
 	} else {
-		err = s.Storage.Update(ctx, m, metricValue)
+		err = s.updateMetric(ctx, m, metricValue)
 		if err != nil {
 			return nil, err
 		}
@@ -152,7 +176,7 @@ func (s *HTTPServer) UpdateJSONHandler(c echo.Context) error {
 		return c.String(http.StatusBadRequest, metric.ErrorInvalidMetricType.Error())
 	}
 
-	m, err := s.updateMetric(ctx, mDTO.MType, mDTO.ID, metricValue)
+	m, err := s.updateMetricByValue(ctx, mDTO.MType, mDTO.ID, metricValue)
 	if err != nil {
 		s.logger.Errorw("Error updating metric", "err", err)
 
@@ -189,7 +213,7 @@ func (s *HTTPServer) UpdateHandler(c echo.Context) error {
 	metricName := c.Param("name")
 	metricValue := c.Param("value")
 
-	_, err := s.updateMetric(ctx, metricType, metricName, metricValue)
+	_, err := s.updateMetricByValue(ctx, metricType, metricName, metricValue)
 
 	if err != nil {
 
