@@ -10,8 +10,8 @@ import (
 
 	"github.com/dmitrijs2005/metric-alerting-service/internal/common"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
-	"github.com/shirou/gopsutil/v4/cpu"
-	"github.com/shirou/gopsutil/v4/mem"
+	"github.com/shirou/gopsutil/cpu"
+	"github.com/shirou/gopsutil/mem"
 )
 
 type Collector struct {
@@ -100,13 +100,15 @@ func (c *Collector) RunStatUpdater(ctx context.Context, wg *sync.WaitGroup) {
 
 	defer wg.Done()
 
-	select {
-	case <-time.After(c.PollInterval):
-		ms := c.collectMemStats()
-		c.updateMemStats(ms)
-		c.updateAdditionalMetrics()
-	case <-ctx.Done():
-		return
+	for {
+		select {
+		case <-time.After(c.PollInterval):
+			ms := c.collectMemStats()
+			c.updateMemStats(ms)
+			c.updateAdditionalMetrics()
+		case <-ctx.Done():
+			return
+		}
 	}
 
 }
@@ -115,12 +117,14 @@ func (c *Collector) RunPSUtilMetricsUpdater(ctx context.Context, wg *sync.WaitGr
 
 	defer wg.Done()
 
-	select {
-	case <-time.After(c.PollInterval):
-		c.updatePSUtilsMemoryMetrics(ctx)
-		c.updatePSUtilsCPUMetrics(ctx)
-	case <-ctx.Done():
-		return
+	for {
+		select {
+		case <-time.After(c.PollInterval):
+			c.updatePSUtilsMemoryMetrics(ctx)
+			c.updatePSUtilsCPUMetrics(ctx)
+		case <-ctx.Done():
+			return
+		}
 	}
 
 }
