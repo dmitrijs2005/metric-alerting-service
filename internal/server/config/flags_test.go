@@ -17,10 +17,10 @@ func TestParseFlags(t *testing.T) {
 		args     []string
 		expected *Config
 	}{
-		{"Test1 iP:port", []string{"cmd", "-a=127.0.0.1:9090", "-i", "30", "-f", "/tmp/tmp.sav", "-d", "db", "-r", "true"},
-			&Config{"127.0.0.1:9090", 30 * time.Second, "/tmp/tmp.sav", true, "db"}},
-		{"Test2 :port", []string{"cmd"}, &Config{":8080", 30 * time.Second, "/tmp/tmp.sav", true, ""}},             // Default value
-		{"Test3 empty string", []string{"cmd", "-a", ""}, &Config{"", 30 * time.Second, "/tmp/tmp.sav", true, ""}}, // Edge case: empty value
+		{"Test1 iP:port", []string{"cmd", "-a=127.0.0.1:9090", "-i", "30", "-f", "/tmp/tmp.sav", "-d", "db", "-k", "secretkey1", "-r", "true"},
+			&Config{"127.0.0.1:9090", 30 * time.Second, "/tmp/tmp.sav", true, "db", "secretkey1"}},
+		{"Test2 :port", []string{"cmd"}, &Config{":8080", 30 * time.Second, "/tmp/tmp.sav", true, "", ""}},             // Default value
+		{"Test3 empty string", []string{"cmd", "-a", ""}, &Config{"", 30 * time.Second, "/tmp/tmp.sav", true, "", ""}}, // Edge case: empty value
 	}
 
 	for _, tt := range tests {

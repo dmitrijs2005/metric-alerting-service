@@ -18,11 +18,12 @@ func TestParseEnv(t *testing.T) {
 		fileStoragePath string
 		restore         string
 		databaseDSN     string
+		key             string
 		expected        *Config
 	}{
-		{"Test1 ip:port", "127.0.0.1:9090", "30", "/tmp/save.sav", "true", "db1", &Config{"127.0.0.1:9090", 30 * time.Second, "/tmp/save.sav", true, "db1"}},
-		{"Test1 :port", ":8080", "25", "/tmp/save2.sav", "false", "db2", &Config{":8080", 25 * time.Second, "/tmp/save2.sav", false, "db2"}}, // Default value
-		{"Test1 empty string", "", "25", "/tmp/save2.sav", "false", "db3", &Config{"", 25 * time.Second, "/tmp/save2.sav", false, "db3"}},    // Edge case: empty value
+		{"Test1 ip:port", "127.0.0.1:9090", "30", "/tmp/save.sav", "true", "db1", "secretkey1", &Config{"127.0.0.1:9090", 30 * time.Second, "/tmp/save.sav", true, "db1", "secretkey1"}},
+		{"Test1 :port", ":8080", "25", "/tmp/save2.sav", "false", "db2", "secretkey2", &Config{":8080", 25 * time.Second, "/tmp/save2.sav", false, "db2", "secretkey2"}}, // Default value
+		{"Test1 empty string", "", "25", "/tmp/save2.sav", "false", "db3", "secretkey3", &Config{"", 25 * time.Second, "/tmp/save2.sav", false, "db3", "secretkey3"}},    // Edge case: empty value
 	}
 
 	for _, tt := range tests {
@@ -34,6 +35,7 @@ func TestParseEnv(t *testing.T) {
 			oldFileStoragePath := os.Getenv("FILE_STORAGE_PATH")
 			oldRestore := os.Getenv("RESTORE")
 			oldDatabaseDSN := os.Getenv("DATABASE_DSN")
+			oldKey := os.Getenv("KEY")
 
 			if err := os.Setenv("ADDRESS", tt.addr); err != nil {
 				panic(err)
@@ -55,6 +57,10 @@ func TestParseEnv(t *testing.T) {
 				panic(err)
 			}
 
+			if err := os.Setenv("KEY", tt.key); err != nil {
+				panic(err)
+			}
+
 			config := &Config{}
 			parseEnv(config)
 
@@ -71,6 +77,10 @@ func TestParseEnv(t *testing.T) {
 				panic(err)
 			}
 			if err := os.Setenv("DATABASE_DSN", oldDatabaseDSN); err != nil {
+				panic(err)
+			}
+
+			if err := os.Setenv("KEY", oldKey); err != nil {
 				panic(err)
 			}
 

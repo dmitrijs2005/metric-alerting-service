@@ -68,7 +68,13 @@ func (s *MemStorage) Update(ctx context.Context, metric metric.Metric, value int
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	return metric.Update(value)
+	key := getKey(metric.GetType(), metric.GetName())
+	m, exists := s.Data[key]
+	if exists {
+		return m.Update(value)
+	}
+	return common.ErrorMetricDoesNotExist
+
 }
 
 func (s *MemStorage) UpdateBatch(ctx context.Context, metrics *[]metric.Metric) error {
@@ -78,7 +84,10 @@ func (s *MemStorage) UpdateBatch(ctx context.Context, metrics *[]metric.Metric) 
 
 	for _, metric := range *metrics {
 		key := getKey(metric.GetType(), metric.GetName())
-		s.Data[key] = metric
+		m, exists := s.Data[key]
+		if exists {
+			return m.Update(metric.GetValue())
+		}
 	}
 
 	return nil

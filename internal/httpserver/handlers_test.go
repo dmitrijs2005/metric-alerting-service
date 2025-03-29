@@ -2,11 +2,13 @@ package httpserver
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"html/template"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -17,7 +19,27 @@ import (
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage/memory"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+var (
+	metric1 = &metric.Counter{Name: "counter1", Value: 1}
+	metric2 = &metric.Gauge{Name: "gauge1", Value: 1.234}
+)
+
+func prepareTestServer() *HTTPServer {
+	a := "http://localhost:8080"
+	s := memory.NewMemStorage()
+
+	s.Data["counter|counter1"] = metric1
+	s.Data["gauge|gauge1"] = metric2
+
+	return &HTTPServer{
+		Address: a,
+		Storage: s,
+	}
+
+}
 
 func TestHTTPServer_UpdateHandler(t *testing.T) {
 
@@ -367,6 +389,316 @@ func TestHTTPServer_UpdateJSONHandler(t *testing.T) {
 				assert.Equal(t, tt.want.value, *response.Delta)
 
 			}
+		})
+	}
+}
+
+func TestHTTPServer_retrieveMetric(t *testing.T) {
+
+	ctx := context.Background()
+
+	type args struct {
+		metricType string
+		metricName string
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    metric.Metric
+		wantErr bool
+	}{
+		{name: "Counter OK", args: args{string(metric.MetricTypeCounter), "counter1"}, want: &metric.Counter{Name: "counter1", Value: 1}},
+		{name: "Gauge OK", args: args{string(metric.MetricTypeGauge), "gauge1"}, want: &metric.Gauge{Name: "gauge1", Value: 1.234}},
+		{name: "Unknown", args: args{"unknown", "u1"}, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := prepareTestServer()
+
+			got, err := s.retrieveMetric(ctx, tt.args.metricType, tt.args.metricName)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("HTTPServer.retrieveMetric() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("HTTPServer.retrieveMetric() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestHTTPServer_updateMetric(t *testing.T) {
+
+	a := "http://localhost:8080"
+	s := memory.NewMemStorage()
+
+	metric1 := &metric.Counter{Name: "counter1", Value: 1}
+	metric2 := &metric.Gauge{Name: "gauge1", Value: 1.234}
+
+	s.Data["counter|counter1"] = metric1
+	s.Data["gauge|gauge1"] = metric2
+
+	ctx := context.Background()
+
+	type args struct {
+		m           metric.Metric
+		metricValue any
+	}
+	tests := []struct {
+		name      string
+		args      args
+		wantErr   bool
+		wantValue any
+	}{
+		{name: "Counter OK", args: args{m: metric1, metricValue: int64(2)}, wantErr: false, wantValue: int64(3)},
+		{name: "Gauge OK", args: args{m: metric2, metricValue: float64(2.345)}, wantErr: false, wantValue: float64(2.345)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &HTTPServer{
+				Address: a,
+				Storage: s,
+			}
+			if err := s.updateMetric(ctx, tt.args.m, tt.args.metricValue); (err != nil) != tt.wantErr {
+				t.Errorf("HTTPServer.updateMetric() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			elements, _ := s.Storage.RetrieveAll(ctx)
+			for _, b := range elements {
+				fmt.Println(b.GetValue())
+			}
+
+			m, err := s.retrieveMetric(ctx, string(tt.args.m.GetType()), tt.args.m.GetName())
+			if err != nil {
+				t.Errorf("HTTPServer.updateMetric() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if m.GetValue() != tt.wantValue {
+				t.Errorf("HTTPServer.updateMetric() error = wrong value, %v, wanted: %v ", m.GetValue(), tt.wantValue)
+			}
+
+		})
+	}
+}
+
+func TestHTTPServer_addNewMetric(t *testing.T) {
+
+	ctx := context.Background()
+
+	type args struct {
+		metricType  string
+		metricName  string
+		metricValue any
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    metric.Metric
+		wantErr bool
+	}{
+		{name: "Counter OK", args: args{"counter", "c2", int64(1)}, wantErr: false, want: &metric.Counter{Name: "c2", Value: int64(1)}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := prepareTestServer()
+			got, err := s.addNewMetric(ctx, tt.args.metricType, tt.args.metricName, tt.args.metricValue)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("HTTPServer.addNewMetric() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("HTTPServer.addNewMetric() = %v, want %v", got, tt.want)
+			}
+			m, err := s.retrieveMetric(ctx, tt.args.metricType, tt.args.metricName)
+			if err != nil {
+				t.Errorf("HTTPServer.updateMetric() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if !reflect.DeepEqual(m, tt.want) {
+				t.Errorf("HTTPServer.addNewMetric() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestHTTPServer_newMetricWithValue(t *testing.T) {
+	type args struct {
+		metricType  string
+		metricName  string
+		metricValue any
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    metric.Metric
+		wantErr bool
+	}{
+		{name: "Counter", args: args{"counter", "c1", int64(1)}, wantErr: false, want: &metric.Counter{Name: "c1", Value: int64(1)}},
+		{name: "Gauge", args: args{"gauge", "g1", float64(1.234)}, wantErr: false, want: &metric.Gauge{Name: "g1", Value: float64(1.234)}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := prepareTestServer()
+			got, err := s.newMetricWithValue(tt.args.metricType, tt.args.metricName, tt.args.metricValue)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("HTTPServer.newMetricWithValue() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("HTTPServer.newMetricWithValue() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestHTTPServer_updateMetricByValue(t *testing.T) {
+	ctx := context.Background()
+	type args struct {
+		metricType  string
+		metricName  string
+		metricValue interface{}
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    metric.Metric
+		wantErr bool
+	}{
+		{name: "Counter", args: args{"counter", "c1", int64(1)}, wantErr: false, want: &metric.Counter{Name: "c1", Value: int64(1)}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := prepareTestServer()
+			got, err := s.updateMetricByValue(ctx, tt.args.metricType, tt.args.metricName, tt.args.metricValue)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("HTTPServer.updateMetricByValue() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("HTTPServer.updateMetricByValue() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestHTTPServer_fillValue(t *testing.T) {
+	type args struct {
+		m metric.Metric
+		r *dto.Metrics
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{name: "OK", args: args{m: &metric.Counter{Name: "c1", Value: int64(1)}, r: &dto.Metrics{}}, wantErr: false},
+		{name: "Error", args: args{m: &metric.Gauge{Name: "g1", Value: float64(1.234)}, r: &dto.Metrics{}}, wantErr: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := prepareTestServer()
+			if err := s.fillValue(tt.args.m, tt.args.r); (err != nil) != tt.wantErr {
+				t.Errorf("HTTPServer.fillValue() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestHTTPServer_MetricFromDto(t *testing.T) {
+	type args struct {
+		mDTO dto.Metrics
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    metric.Metric
+		wantErr bool
+	}{
+		{"ok", args{mDTO: dto.Metrics{ID: "m1", MType: "counter", Delta: int64Ptr(1)}}, &metric.Counter{Name: "m1", Value: 1}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := prepareTestServer()
+			got, err := s.MetricFromDto(tt.args.mDTO)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("HTTPServer.MetricFromDto() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("HTTPServer.MetricFromDto() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestHTTPServer_DTOFromMetric(t *testing.T) {
+	tests := []struct {
+		name    string
+		m       metric.Metric
+		want    *dto.Metrics
+		wantErr bool
+	}{
+		{"ok", &metric.Counter{Name: "c1", Value: 1}, &dto.Metrics{ID: "c1", MType: "counter", Delta: int64Ptr(1)}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := prepareTestServer()
+			got, err := s.DTOFromMetric(tt.m)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("HTTPServer.DTOFromMetric() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("HTTPServer.DTOFromMetric() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestHTTPServer_UpdatesJSONHandler(t *testing.T) {
+	ctx := context.Background()
+	tests := []struct {
+		name    string
+		payload []dto.Metrics
+		want    []metric.Metric
+		wantErr bool
+	}{
+		{"ok",
+			[]dto.Metrics{{ID: metric1.Name, MType: "counter", Delta: int64Ptr(2)}, {ID: metric2.Name, MType: "gauge", Value: float64Ptr(2.345)}},
+			[]metric.Metric{&metric.Counter{Name: metric1.Name, Value: 3}, &metric.Gauge{Name: metric2.Name, Value: 2.345}},
+			false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			body, err := json.Marshal(tt.payload)
+			require.NoError(t, err)
+
+			// Create request and recorder
+			req := httptest.NewRequest(http.MethodPost, "/updates", bytes.NewReader(body))
+			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+			rec := httptest.NewRecorder()
+
+			// Create context
+			e := echo.New()
+			c := e.NewContext(req, rec)
+
+			s := prepareTestServer()
+			if err := s.UpdatesJSONHandler(c); (err != nil) != tt.wantErr {
+				t.Errorf("HTTPServer.UpdatesJSONHandler() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			for _, m := range tt.want {
+				m, err := s.retrieveMetric(ctx, string(m.GetType()), m.GetName())
+				if (err != nil) != tt.wantErr {
+					t.Errorf("HTTPServer.TestHTTPServer_UpdatesJSONHandler() error = %v, wantErr %v", err, tt.wantErr)
+					return
+				}
+
+				if m.GetValue() != m.GetValue() {
+					t.Errorf("error value: %v", m.GetValue())
+					return
+				}
+			}
+
 		})
 	}
 }

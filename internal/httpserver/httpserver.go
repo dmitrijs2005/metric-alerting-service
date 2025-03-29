@@ -19,11 +19,12 @@ type HTTPServer struct {
 	Restore       bool
 	Storage       storage.Storage
 	Saver         file.DumpSaver
+	Key           string
 	logger        logger.Logger
 }
 
-func NewHTTPServer(ctx context.Context, address string, storage storage.Storage, logger logger.Logger) *HTTPServer {
-	return &HTTPServer{ctx: ctx, Address: address, Storage: storage, logger: logger}
+func NewHTTPServer(ctx context.Context, address string, key string, storage storage.Storage, logger logger.Logger) *HTTPServer {
+	return &HTTPServer{ctx: ctx, Address: address, Key: key, Storage: storage, logger: logger}
 }
 
 func (s *HTTPServer) ConfigureRoutes(templatePath string) *echo.Echo {
@@ -38,6 +39,9 @@ func (s *HTTPServer) ConfigureRoutes(templatePath string) *echo.Echo {
 
 	e.Use(s.RequestResponseInfoMiddleware)
 	e.Use(s.CompressingMiddleware)
+	if s.Key != "" {
+		e.Use(s.SignCheckMiddleware)
+	}
 
 	e.POST("/value/", s.ValueJSONHandler)
 	e.POST("/update/", s.UpdateJSONHandler)

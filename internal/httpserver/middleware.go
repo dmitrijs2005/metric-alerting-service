@@ -1,15 +1,83 @@
 package httpserver
 
 import (
+	"bytes"
+	"encoding/base64"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/dmitrijs2005/metric-alerting-service/internal/common"
 	"github.com/labstack/echo/v4"
 )
 
+func (s *HTTPServer) SignCheckMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c echo.Context) error {
+
+		req := c.Request()
+
+		// checking if signature is received
+		sign := req.Header.Get("HashSHA256")
+
+		if sign != "" {
+
+			body, err := io.ReadAll(req.Body)
+			if err != nil {
+				return echo.NewHTTPError(http.StatusInternalServerError, "Cannot read signature")
+			}
+
+			actualSign, err := common.CreateAes256Signature(body, s.Key)
+			if err != nil {
+				return echo.NewHTTPError(http.StatusInternalServerError, "Cannot create signature")
+			}
+
+			if sign != base64.RawStdEncoding.EncodeToString(actualSign) {
+				return echo.NewHTTPError(http.StatusBadRequest, "Incorrect signature")
+			}
+
+			// restoring requst body
+			c.Request().Body = io.NopCloser(bytes.NewBuffer(body))
+
+		}
+
+		// if key is specified we should read the output and sign it
+
+		// buffer for output
+		resBody := new(bytes.Buffer)
+
+		// substitute response writer
+		w := c.Response().Writer
+
+		rec := NewResponseRecorder(w, resBody)
+		c.Response().Writer = rec
+
+		if err := next(c); err != nil {
+			c.Error(err)
+		}
+
+		// signing the response
+		body := resBody.Bytes()
+		responseSign, err := common.CreateAes256Signature(body, s.Key)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Cannot create signature")
+		}
+
+		c.Response().Writer = w
+		c.Response().WriteHeader(rec.status)
+
+		hdr := c.Response().Header()
+		hdr.Set("HashSHA256", base64.RawStdEncoding.EncodeToString(responseSign))
+
+		//_, writeErr := c.Response().Writer.Write(resBody.Bytes())
+
+		return nil
+	}
+}
+
 func (s *HTTPServer) RequestResponseInfoMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
+
 	return func(c echo.Context) error {
 
 		t := time.Now()
@@ -30,6 +98,7 @@ func (s *HTTPServer) RequestResponseInfoMiddleware(next echo.HandlerFunc) echo.H
 }
 
 func (s *HTTPServer) CompressingMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
+
 	return func(c echo.Context) error {
 
 		req := c.Request()
@@ -38,15 +107,13 @@ func (s *HTTPServer) CompressingMiddleware(next echo.HandlerFunc) echo.HandlerFu
 		w := resp.Writer
 
 		// if gzip is not supported, do nothing
-		//&& (req.URL.Path == "/update/" || req.URL.Path == "/")
 		if strings.Contains(req.Header.Get("Accept-Encoding"), "gzip") {
 
 			// создаём gzip.Writer поверх текущего w
 			gw, err := NewGzipWriter(w, resp)
 
 			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				return nil
+				return echo.NewHTTPError(http.StatusInternalServerError, "Cannot initialize Gzip")
 			}
 
 			resp.Writer = gw
@@ -73,8 +140,7 @@ func (s *HTTPServer) CompressingMiddleware(next echo.HandlerFunc) echo.HandlerFu
 			// оборачиваем тело запроса в io.Reader с поддержкой декомпрессии
 			r, err := NewGzipReader(req.Body)
 			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				return nil
+				return echo.NewHTTPError(http.StatusInternalServerError, "Cannot initialize Gzip")
 			}
 
 			req.Body = r

@@ -3,11 +3,10 @@ package sender
 import (
 	"net/http"
 	"net/http/httptest"
-	"sync"
 	"testing"
 	"time"
 
-	"github.com/dmitrijs2005/metric-alerting-service/internal/collector"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/agent/collector"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
 	"github.com/stretchr/testify/assert"
 )
@@ -39,12 +38,8 @@ func TestMetricAgent_SendMetric(t *testing.T) {
 				ReportInterval: 10 * time.Second,
 			}
 
-			var wg sync.WaitGroup
-			wg.Add(1)
+			agent.SendMetric(tt.metric)
 
-			agent.SendMetric(tt.metric, &wg)
-
-			wg.Wait()
 		})
 	}
 }
@@ -73,6 +68,6 @@ func TestMetricAgent_SendMetrics(t *testing.T) {
 	agent.Data.Store(metric1.GetName(), metric1)
 	agent.Data.Store(metric2.GetName(), metric2)
 
-	agent.SendMetrics()
+	agent.SendAllMetricsInOneBatch()
 
 }

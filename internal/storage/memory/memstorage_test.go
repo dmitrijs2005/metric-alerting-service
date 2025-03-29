@@ -27,12 +27,7 @@ func Test_getKey(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			assert.Equal(t, tt.want, getKey(tt.args.metricType, tt.args.metricName))
-
-			// if got := getKey(tt.args.metricType, tt.args.metricName); got != tt.want {
-			// 	t.Errorf("getKey() = %v, want %v", got, tt.want)
-			//}
 		})
 	}
 }

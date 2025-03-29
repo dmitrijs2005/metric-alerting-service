@@ -8,6 +8,6 @@ import (
 func main() {
 
 	cfg := config.LoadConfig()
-	a := agent.NewMetricAgent(cfg.PollInterval, cfg.ReportInterval, cfg.EndpointAddr)
+	a := agent.NewMetricAgent(cfg)
 	a.Run()
 }
