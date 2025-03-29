@@ -6,6 +6,8 @@ type Config struct {
 	EndpointAddr   string
 	ReportInterval time.Duration
 	PollInterval   time.Duration
+	Key            string
+	SendRateLimit  int
 }
 
 func LoadConfig() *Config {

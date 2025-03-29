@@ -14,11 +14,10 @@ var (
 )
 
 type WrappedError struct {
-	Label string // метка должна быть в верхнем регистре
+	Label string
 	Err   error
 }
 
-// добавьте методы Error() и NewLabelError(label string, err error)
 func NewWrappedError(label string, err error) *WrappedError {
 	return &WrappedError{Label: label, Err: err}
 }

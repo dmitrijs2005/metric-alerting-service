@@ -15,6 +15,8 @@ func parseFlags(config *Config) {
 	flag.IntVar(&storeInterval, "i", 30, "saved metric store interval")
 
 	flag.StringVar(&config.FileStoragePath, "f", "/tmp/tmp.sav", "saved metric file storage path")
+
+	flag.StringVar(&config.Key, "k", "", "signing key")
 	flag.BoolVar(&config.Restore, "r", true, "restore saved metrics")
 
 	flag.Parse()

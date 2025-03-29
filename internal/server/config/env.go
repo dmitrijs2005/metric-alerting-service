@@ -7,8 +7,8 @@ import (
 )
 
 func parseEnv(config *Config) {
-	if addr, ok := os.LookupEnv("ADDRESS"); ok && addr != "" {
-		config.EndpointAddr = addr
+	if envVar, ok := os.LookupEnv("ADDRESS"); ok && envVar != "" {
+		config.EndpointAddr = envVar
 	}
 
 	if envVar, ok := os.LookupEnv("STORE_INTERVAL"); ok {
@@ -33,6 +33,10 @@ func parseEnv(config *Config) {
 
 	if envVar, ok := os.LookupEnv("DATABASE_DSN"); ok {
 		config.DatabaseDSN = envVar
+	}
+
+	if envVar, ok := os.LookupEnv("KEY"); ok {
+		config.Key = envVar
 	}
 
 }
