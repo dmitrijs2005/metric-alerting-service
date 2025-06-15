@@ -58,3 +58,9 @@ func (c *Counter) Update(value interface{}) error {
 func NewCounter(name string) *Counter {
 	return &Counter{Name: name}
 }
+
+func MustNewCounter(name string, val int64) *Counter {
+	m := NewCounter(name)
+	m.Value = val
+	return m
+}

@@ -2,6 +2,7 @@ package file
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -63,4 +64,44 @@ func TestSaveAndRestoreDump(t *testing.T) {
 	m2, err := stor2.Retrieve(ctx, metric.MetricTypeGauge, "gauge1")
 	assert.NoError(t, err)
 	assert.Equal(t, m2.GetValue(), float64(1.234))
+}
+
+func BenchmarkFileSaver_SaveDump(b *testing.B) {
+	ctx := context.Background()
+	tmpFile := "test_save.txt"
+	defer os.Remove(tmpFile)
+
+	stor := memory.NewMemStorage()
+
+	for i := 0; i < 1000; i++ {
+		stor.Add(ctx, metric.MustNewCounter(fmt.Sprintf("counter%d", i), int64(i)))
+	}
+
+	fs := NewFileSaver(tmpFile, stor)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = fs.SaveDump(ctx)
+	}
+}
+
+func BenchmarkFileSaver_RestoreDump(b *testing.B) {
+	ctx := context.Background()
+	tmpFile := "test_restore.txt"
+	defer os.Remove(tmpFile)
+
+	// preparing data file
+	f, _ := os.Create(tmpFile)
+	for i := 0; i < 1000; i++ {
+		fmt.Fprintf(f, "m%d:counter:%d\n", i, i)
+	}
+	f.Close()
+
+	stor := memory.NewMemStorage()
+	fs := NewFileSaver(tmpFile, stor)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = fs.RestoreDump(ctx)
+	}
 }
