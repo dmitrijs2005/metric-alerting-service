@@ -102,3 +102,17 @@ func TestMetricAgent_updateMemStats(t *testing.T) {
 		}
 	})
 }
+
+func BenchmarkIndexedMetricName(b *testing.B) {
+	b.Run("sprintf", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_ = GetIndexedMetricNameSprintf("CPUutilization", i)
+		}
+	})
+
+	b.Run("itoa", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_ = GetIndexedMetricNameItoa("CPUutilization", i)
+		}
+	})
+}
