@@ -21,10 +21,10 @@ func (s *HTTPServer) retrieveMetric(ctx context.Context, metricType string, metr
 func (s *HTTPServer) updateMetric(ctx context.Context, m metric.Metric, metricValue any) error {
 	x := s.Storage.Update(ctx, m, metricValue)
 
-	elements, _ := s.Storage.RetrieveAll(ctx)
-	for _, b := range elements {
-		fmt.Println(b.GetValue())
-	}
+	// elements, _ := s.Storage.RetrieveAll(ctx)
+	// for _, b := range elements {
+	// 	fmt.Println(b.GetValue())
+	// }
 
 	return x
 
