@@ -58,3 +58,9 @@ func (c *Gauge) Update(value interface{}) error {
 func NewGauge(name string) *Gauge {
 	return &Gauge{Name: name}
 }
+
+func MustNewGauge(name string, val float64) *Gauge {
+	m := NewGauge(name)
+	m.Value = val
+	return m
+}

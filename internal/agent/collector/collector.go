@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"runtime"
+	"strconv"
 	"sync"
 	"time"
 
@@ -150,8 +151,16 @@ func (c *Collector) updatePSUtilsCPUMetrics(ctx context.Context) {
 	}
 
 	for i, perc := range percentages {
-		metricName := fmt.Sprintf("CPUutilization%d", i+1)
+		metricName := GetIndexedMetricNameItoa("CPUutilization", i+1)
 		c.updateGauge(metricName, perc)
 	}
 
+}
+
+func GetIndexedMetricNameSprintf(name string, index int) string {
+	return fmt.Sprintf("%s%d", name, index)
+}
+
+func GetIndexedMetricNameItoa(name string, index int) string {
+	return name + strconv.Itoa(index)
 }

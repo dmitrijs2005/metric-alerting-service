@@ -17,6 +17,18 @@ import (
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
 )
 
+var gzipWriterPool = sync.Pool{
+	New: func() interface{} {
+		w, _ := gzip.NewWriterLevel(nil, gzip.BestSpeed)
+		return w
+	},
+}
+var bufferPool = sync.Pool{
+	New: func() interface{} {
+		return new(bytes.Buffer)
+	},
+}
+
 type Sender struct {
 	ReportInterval time.Duration
 	ServerURL      string
@@ -45,8 +57,12 @@ func (s *Sender) worker(ind int, jobs <-chan metric.Metric) {
 	defer common.WriteToConsole(fmt.Sprintf("%s exited", label))
 
 	for j := range jobs {
-		s.SendMetric(j)
-		common.WriteToConsole(fmt.Sprintf("%s sent metric %s", label, j.GetName()))
+		err := s.SendMetric(j)
+		if err != nil {
+			common.WriteToConsole(fmt.Sprintf("Error sending metric %v", err))
+		} else {
+			common.WriteToConsole(fmt.Sprintf("%s sent metric %s", label, j.GetName()))
+		}
 	}
 
 }
@@ -90,8 +106,15 @@ func (s *Sender) SendMetric(m metric.Metric) error {
 		return common.ErrorMarshallingJSON
 	}
 
-	buf := bytes.NewBuffer(nil)
-	zb := gzip.NewWriter(buf)
+	buf := bufferPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	zb := gzipWriterPool.Get().(*gzip.Writer)
+	zb.Reset(buf)
+
+	defer func() {
+		gzipWriterPool.Put(zb)
+		bufferPool.Put(buf)
+	}()
 
 	_, err = zb.Write(jsonData)
 	if err != nil {
@@ -123,6 +146,9 @@ func (s *Sender) SendMetric(m metric.Metric) error {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("request failed with status: %d %s", resp.StatusCode, resp.Status)
+	}
 	return nil
 }
 
