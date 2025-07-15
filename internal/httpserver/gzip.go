@@ -4,7 +4,15 @@ import (
 	"compress/gzip"
 	"io"
 	"net/http"
+	"sync"
 )
+
+var gzipWriterPool = sync.Pool{
+	New: func() interface{} {
+		w, _ := gzip.NewWriterLevel(nil, gzip.BestSpeed)
+		return w
+	},
+}
 
 type HeaderProvider interface {
 	Header() http.Header
@@ -31,15 +39,14 @@ func (w *GzipWriter) Write(b []byte) (int, error) {
 }
 
 func (w *GzipWriter) Close() error {
+	defer gzipWriterPool.Put(w.Writer)
 	return w.Writer.Close()
 }
 
 func NewGzipWriter(w http.ResponseWriter, hp HeaderProvider) (*GzipWriter, error) {
-	gz, err := gzip.NewWriterLevel(w, gzip.BestSpeed)
-	if err != nil {
-		return nil, err
-	}
-	//defer gz.Close()
+
+	gz := gzipWriterPool.Get().(*gzip.Writer)
+	gz.Reset(w)
 
 	return &GzipWriter{
 		Writer:         gz,

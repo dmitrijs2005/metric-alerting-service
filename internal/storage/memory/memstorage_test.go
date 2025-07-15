@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/dmitrijs2005/metric-alerting-service/internal/common"
@@ -186,4 +187,110 @@ func TestMemStorage_Update(t *testing.T) {
 			assert.Equal(t, tt.wantValue, s.Data[key].GetValue())
 		})
 	}
+}
+
+func BenchmarkMemStorage_Add(b *testing.B) {
+	stor := NewMemStorage()
+	ctx := context.Background()
+
+	// creating metrics before Reset timer
+	metrics := make([]metric.Metric, b.N)
+	for i := 0; i < b.N; i++ {
+		m := metric.NewCounter(fmt.Sprintf("counter%d", i))
+		m.Value = int64(i)
+		metrics[i] = m
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = stor.Add(ctx, metrics[i])
+	}
+}
+
+func BenchmarkMemStorage_Update(b *testing.B) {
+	store := NewMemStorage()
+	ctx := context.Background()
+
+	m := metric.MustNewCounter("counter1", 1)
+	_ = store.Add(ctx, m)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = store.Update(ctx, m, int64(i))
+	}
+}
+
+func BenchmarkStore_GetMetric(b *testing.B) {
+	stor := NewMemStorage()
+	ctx := context.Background()
+
+	m := metric.NewCounter("counter1")
+	m.Value = 123
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = stor.Retrieve(ctx, metric.MetricTypeCounter, "counter1")
+	}
+}
+
+func BenchmarkMemStorage_RetrieveAll(b *testing.B) {
+	store := NewMemStorage()
+	ctx := context.Background()
+
+	for i := 0; i < 100; i++ {
+		_ = store.Add(ctx, metric.MustNewCounter(fmt.Sprintf("counter%d", i), int64(i)))
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = store.RetrieveAll(ctx)
+	}
+}
+
+func BenchmarkMemStorage_UpdateBatch(b *testing.B) {
+	store := NewMemStorage()
+	ctx := context.Background()
+
+	metrics := make([]metric.Metric, 100)
+	for i := 0; i < 100; i++ {
+		m := metric.MustNewGauge(fmt.Sprintf("gauge%d", i), float64(i))
+		_ = store.Add(ctx, m)
+		metrics[i] = m
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = store.UpdateBatch(ctx, &metrics)
+	}
+}
+
+func BenchmarkMemStorage_ConcurrentRetrieve(b *testing.B) {
+	store := NewMemStorage()
+	ctx := context.Background()
+
+	for i := 0; i < 1000; i++ {
+		_ = store.Add(ctx, metric.MustNewCounter(fmt.Sprintf("counter%d", i), int64(i)))
+	}
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			_, _ = store.Retrieve(ctx, metric.MetricTypeCounter, "counter500")
+		}
+	})
+}
+
+func BenchmarkMemStorage_ConcurrentAdd(b *testing.B) {
+	stor := NewMemStorage()
+	ctx := context.Background()
+
+	var counter int64
+
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			i := atomic.AddInt64(&counter, 1)
+			m := metric.MustNewCounter(fmt.Sprintf("counter%d", i), i)
+			_ = stor.Add(ctx, m)
+		}
+	})
 }

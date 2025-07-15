@@ -11,9 +11,10 @@ import (
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
 )
 
+// FileSaver is a file-based implementation of the DumpSaver interface.
 type FileSaver struct {
-	FileStoragePath string
-	Storage         storage.Storage
+	FileStoragePath string          // Path to the dump file
+	Storage         storage.Storage // Underlying metric storage
 }
 
 func (fs *FileSaver) SaveDump(ctx context.Context) error {

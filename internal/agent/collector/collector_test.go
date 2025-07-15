@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"runtime"
 	"testing"
 
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
@@ -61,4 +62,57 @@ func TestMetricAgent_updateCounter(t *testing.T) {
 			assert.Equal(t, m.GetValue(), tt.args.metricValue)
 		})
 	}
+}
+
+func TestMetricAgent_updateAdditionalMetrics(t *testing.T) {
+	a := &Collector{}
+	t.Run("Test", func(t *testing.T) {
+		a.updateAdditionalMetrics()
+
+		names := []string{"RandomValue", "PollCount"}
+
+		for _, name := range names {
+			val, ok := a.Data.Load(name)
+			assert.True(t, ok)
+
+			_, ok = val.(metric.Metric)
+			assert.True(t, ok)
+		}
+	})
+}
+
+func TestMetricAgent_updateMemStats(t *testing.T) {
+	a := &Collector{}
+	t.Run("Test", func(t *testing.T) {
+
+		ms := &runtime.MemStats{}
+		a.updateMemStats(ms)
+
+		names := []string{
+			"Alloc", "BuckHashSys", "Frees", "GCCPUFraction", "GCSys", "HeapAlloc", "HeapIdle", "HeapInuse", "HeapObjects",
+			"HeapReleased", "HeapSys", "LastGC", "Lookups", "MCacheInuse", "MCacheSys", "MSpanInuse", "MSpanSys", "Mallocs",
+			"NextGC", "NumForcedGC", "NumGC", "OtherSys", "PauseTotalNs", "StackInuse", "StackSys", "Sys", "TotalAlloc"}
+
+		for _, name := range names {
+			val, ok := a.Data.Load(name)
+			assert.True(t, ok)
+
+			_, ok = val.(metric.Metric)
+			assert.True(t, ok)
+		}
+	})
+}
+
+func BenchmarkIndexedMetricName(b *testing.B) {
+	b.Run("sprintf", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_ = GetIndexedMetricNameSprintf("CPUutilization", i)
+		}
+	})
+
+	b.Run("itoa", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_ = GetIndexedMetricNameItoa("CPUutilization", i)
+		}
+	})
 }
