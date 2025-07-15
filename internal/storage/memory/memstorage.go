@@ -88,7 +88,7 @@ func (s *MemStorage) UpdateBatch(ctx context.Context, metrics *[]metric.Metric) 
 		if exists {
 			err := m.Update(metric.GetValue())
 			if err != nil {
-				return fmt.Errorf("Error updating %s", metric.GetName())
+				return fmt.Errorf("error updating %s", metric.GetName())
 			}
 		}
 	}
