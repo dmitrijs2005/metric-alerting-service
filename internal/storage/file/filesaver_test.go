@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage/memory"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSaveAndRestoreDump(t *testing.T) {
@@ -29,33 +29,23 @@ func TestSaveAndRestoreDump(t *testing.T) {
 
 	// save dump
 	err := fs.SaveDump(ctx)
-	if err != nil {
-		t.Fatalf("SaveDump failed: %v", err)
-	}
+	require.NoError(t, err, "SaveDump failed")
 
 	data, err := os.ReadFile(tmpFile)
-	if err != nil {
-		t.Fatalf("failed to read file: %v", err)
-	}
+	require.NoError(t, err, "failed to read file")
 
 	content := string(data)
-
-	if !strings.Contains(content, "counter1:counter:123") || !strings.Contains(content, "gauge1:gauge:1.234") {
-		t.Errorf("unexpected file content: %s", content)
-	}
+	assert.Contains(t, content, "counter1:counter:123")
+	assert.Contains(t, content, "gauge1:gauge:1.234")
 
 	// restore dump
 	stor2 := memory.NewMemStorage()
 	fs2 := NewFileSaver(tmpFile, stor2)
 
 	err = fs2.RestoreDump(ctx)
-	if err != nil {
-		t.Fatalf("RestoreDump failed: %v", err)
-	}
+	require.NoError(t, err, "RestoreDump failed")
 
-	if len(stor2.Data) != len(stor.Data) {
-		t.Errorf("expected 2 added metrics, got %d", len(stor2.Data))
-	}
+	assert.Len(t, stor2.Data, len(stor.Data), "expected 2 added metrics")
 
 	m, err := stor2.Retrieve(ctx, metric.MetricTypeCounter, "counter1")
 	assert.NoError(t, err)

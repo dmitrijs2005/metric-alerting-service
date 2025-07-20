@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/testutils"
 )
 
 func TestParseFlags(t *testing.T) {
@@ -32,9 +32,7 @@ func TestParseFlags(t *testing.T) {
 			config := &Config{}
 			parseFlags(config)
 
-			if diff := cmp.Diff(config, tt.expected); diff != "" {
-				t.Errorf("Structs mismatch (-config +expected):\n%s", diff)
-			}
+			testutils.AssertEqualStructs(t, config, tt.expected)
 		})
 	}
 }

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/testutils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -35,10 +35,7 @@ func TestParseFlags(t *testing.T) {
 			if !tt.expectPanic {
 
 				require.NotPanics(t, func() { parseFlags(config) })
-
-				if diff := cmp.Diff(config, tt.expected); diff != "" {
-					t.Errorf("Structs mismatch (-config +expected):\n%s", diff)
-				}
+				testutils.AssertEqualStructs(t, config, tt.expected)
 			} else {
 				require.Panics(t, func() { parseFlags(config) })
 			}

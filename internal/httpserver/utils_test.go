@@ -1,6 +1,10 @@
 package httpserver
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
 
 func TestContentTypeIsCompressable(t *testing.T) {
 	type args struct {
@@ -16,10 +20,9 @@ func TestContentTypeIsCompressable(t *testing.T) {
 		{"Not OK", args{"some other"}, false},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			if got := ContentTypeIsCompressable(tt.args.contentType); got != tt.want {
-				t.Errorf("ContentTypeIsCompressable() = %v, want %v", got, tt.want)
-			}
+			assert.Equal(t, tt.want, ContentTypeIsCompressable(tt.args.contentType))
 		})
 	}
 }
