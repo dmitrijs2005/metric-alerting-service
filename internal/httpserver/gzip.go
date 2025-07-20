@@ -7,13 +7,6 @@ import (
 	"sync"
 )
 
-var gzipWriterPool = sync.Pool{
-	New: func() interface{} {
-		w, _ := gzip.NewWriterLevel(nil, gzip.BestSpeed)
-		return w
-	},
-}
-
 type HeaderProvider interface {
 	Header() http.Header
 }
@@ -22,6 +15,7 @@ type GzipWriter struct {
 	http.ResponseWriter
 	Writer         *gzip.Writer
 	HeaderProvider HeaderProvider
+	GzipWriterPool *sync.Pool
 }
 
 func (w *GzipWriter) Write(b []byte) (int, error) {
@@ -39,19 +33,20 @@ func (w *GzipWriter) Write(b []byte) (int, error) {
 }
 
 func (w *GzipWriter) Close() error {
-	defer gzipWriterPool.Put(w.Writer)
+	defer w.GzipWriterPool.Put(w.Writer)
 	return w.Writer.Close()
 }
 
-func NewGzipWriter(w http.ResponseWriter, hp HeaderProvider) (*GzipWriter, error) {
+func NewGzipWriter(w http.ResponseWriter, hp HeaderProvider, pool *sync.Pool) (*GzipWriter, error) {
 
-	gz := gzipWriterPool.Get().(*gzip.Writer)
+	gz := pool.Get().(*gzip.Writer)
 	gz.Reset(w)
 
 	return &GzipWriter{
 		Writer:         gz,
 		ResponseWriter: w,
 		HeaderProvider: hp,
+		GzipWriterPool: pool,
 	}, nil
 
 }

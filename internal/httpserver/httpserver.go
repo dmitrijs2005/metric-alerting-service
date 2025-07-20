@@ -1,10 +1,12 @@
 package httpserver
 
 import (
+	"compress/gzip"
 	"context"
 	"fmt"
 	"html/template"
 	"net/http"
+	"sync"
 
 	"github.com/dmitrijs2005/metric-alerting-service/internal/logger"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
@@ -13,18 +15,30 @@ import (
 )
 
 type HTTPServer struct {
-	ctx           context.Context
-	Address       string
-	StoreInterval int
-	Restore       bool
-	Storage       storage.Storage
-	Saver         file.DumpSaver
-	Key           string
-	logger        logger.Logger
+	ctx            context.Context
+	Address        string
+	StoreInterval  int
+	Restore        bool
+	Storage        storage.Storage
+	Saver          file.DumpSaver
+	Key            string
+	GzipWriterPool *sync.Pool
+	logger         logger.Logger
 }
 
 func NewHTTPServer(ctx context.Context, address string, key string, storage storage.Storage, logger logger.Logger) *HTTPServer {
-	return &HTTPServer{ctx: ctx, Address: address, Key: key, Storage: storage, logger: logger}
+
+	pool := &sync.Pool{
+		New: func() interface{} {
+			w, err := gzip.NewWriterLevel(nil, gzip.BestSpeed)
+			if err != nil {
+				panic("failed to create gzip.Writer: " + err.Error())
+			}
+			return w
+		},
+	}
+
+	return &HTTPServer{ctx: ctx, Address: address, Key: key, Storage: storage, logger: logger, GzipWriterPool: pool}
 }
 
 func (s *HTTPServer) ConfigureRoutes(templatePath string) *echo.Echo {

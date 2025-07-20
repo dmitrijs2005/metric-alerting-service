@@ -17,18 +17,6 @@ import (
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
 )
 
-var gzipWriterPool = sync.Pool{
-	New: func() interface{} {
-		w, _ := gzip.NewWriterLevel(nil, gzip.BestSpeed)
-		return w
-	},
-}
-var bufferPool = sync.Pool{
-	New: func() interface{} {
-		return new(bytes.Buffer)
-	},
-}
-
 type Sender struct {
 	ReportInterval time.Duration
 	ServerURL      string
@@ -36,6 +24,8 @@ type Sender struct {
 	Key            string
 	SendRateLimit  int
 	Jobs           chan metric.Metric
+	GzipWriterPool *sync.Pool
+	BufferPool     *sync.Pool
 }
 
 func NewSender(data *sync.Map, reportInterval time.Duration, serverURL string, key string, sendRateLimit int) *Sender {
@@ -46,6 +36,20 @@ func NewSender(data *sync.Map, reportInterval time.Duration, serverURL string, k
 		Key:            key,
 		SendRateLimit:  sendRateLimit,
 		Jobs:           make(chan metric.Metric),
+		GzipWriterPool: &sync.Pool{
+			New: func() interface{} {
+				w, err := gzip.NewWriterLevel(nil, gzip.BestSpeed)
+				if err != nil {
+					panic(fmt.Sprintf("gzip.NewWriterLevel failed: %v", err))
+				}
+				return w
+			},
+		},
+		BufferPool: &sync.Pool{
+			New: func() interface{} {
+				return new(bytes.Buffer)
+			},
+		},
 	}
 }
 
@@ -106,14 +110,14 @@ func (s *Sender) SendMetric(m metric.Metric) error {
 		return common.ErrorMarshallingJSON
 	}
 
-	buf := bufferPool.Get().(*bytes.Buffer)
+	buf := s.BufferPool.Get().(*bytes.Buffer)
 	buf.Reset()
-	zb := gzipWriterPool.Get().(*gzip.Writer)
+	zb := s.GzipWriterPool.Get().(*gzip.Writer)
 	zb.Reset(buf)
 
 	defer func() {
-		gzipWriterPool.Put(zb)
-		bufferPool.Put(buf)
+		s.GzipWriterPool.Put(zb)
+		s.BufferPool.Put(buf)
 	}()
 
 	_, err = zb.Write(jsonData)

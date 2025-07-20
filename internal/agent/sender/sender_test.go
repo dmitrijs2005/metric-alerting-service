@@ -1,8 +1,12 @@
 package sender
 
 import (
+	"bytes"
+	"compress/gzip"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -36,6 +40,20 @@ func TestMetricAgent_SendMetric(t *testing.T) {
 			agent := &Sender{
 				ServerURL:      mockServer.URL,
 				ReportInterval: 10 * time.Second,
+				GzipWriterPool: &sync.Pool{
+					New: func() interface{} {
+						w, err := gzip.NewWriterLevel(nil, gzip.BestSpeed)
+						if err != nil {
+							panic(fmt.Sprintf("gzip.NewWriterLevel failed: %v", err))
+						}
+						return w
+					},
+				},
+				BufferPool: &sync.Pool{
+					New: func() interface{} {
+						return new(bytes.Buffer)
+					},
+				},
 			}
 
 			agent.SendMetric(tt.metric)
