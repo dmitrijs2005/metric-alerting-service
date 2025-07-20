@@ -463,11 +463,6 @@ func TestHTTPServer_updateMetric(t *testing.T) {
 				t.Errorf("HTTPServer.updateMetric() error = %v, wantErr %v", err, tt.wantErr)
 			}
 
-			// elements, _ := s.Storage.RetrieveAll(ctx)
-			// for _, b := range elements {
-			// 	fmt.Println(b.GetValue())
-			// }
-
 			m, err := s.retrieveMetric(ctx, string(tt.args.m.GetType()), tt.args.m.GetName())
 			if err != nil {
 				t.Errorf("HTTPServer.updateMetric() error = %v, wantErr %v", err, tt.wantErr)
