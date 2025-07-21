@@ -14,38 +14,63 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-func (s *HTTPServer) updateMetric(ctx context.Context, metricType string, metricName string, metricValue interface{}) (metric.Metric, error) {
+func (s *HTTPServer) retrieveMetric(ctx context.Context, metricType string, metricName string) (metric.Metric, error) {
+	return s.Storage.Retrieve(ctx, metric.MetricType(metricType), metricName)
+}
 
-	m, err := s.Storage.Retrieve(ctx, metric.MetricType(metricType), metricName)
+func (s *HTTPServer) updateMetric(ctx context.Context, m metric.Metric, metricValue any) error {
+	x := s.Storage.Update(ctx, m, metricValue)
+	return x
+}
+
+func (s *HTTPServer) addNewMetric(ctx context.Context, metricType string, metricName string, metricValue any) (metric.Metric, error) {
+	m, err := s.newMetricWithValue(metricType, metricName, metricValue)
+	if err != nil {
+		return nil, err
+	}
+	err = s.Storage.Add(ctx, m)
+	if err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (s *HTTPServer) newMetricWithValue(metricType string, metricName string, metricValue any) (metric.Metric, error) {
+	m, err := metric.NewMetric(metric.MetricType(metricType), metricName)
+	if err != nil {
+		return nil, err
+	}
+
+	if gauge, ok := m.(*metric.Gauge); ok {
+		if err := gauge.Update(metricValue); err != nil {
+			return nil, err
+		}
+	} else if counter, ok := m.(*metric.Counter); ok {
+		if err := counter.Update(metricValue); err != nil {
+			return nil, err
+		}
+	} else {
+		return nil, metric.ErrorInvalidMetricType
+	}
+
+	return m, nil
+}
+
+func (s *HTTPServer) updateMetricByValue(ctx context.Context, metricType string, metricName string, metricValue interface{}) (metric.Metric, error) {
+
+	m, err := s.retrieveMetric(ctx, metricType, metricName)
 
 	if err != nil {
 		if !errors.Is(err, common.ErrorMetricDoesNotExist) {
 			return nil, err
 		} else {
-			m, err = metric.NewMetric(metric.MetricType(metricType), metricName)
-			if err != nil {
-				return nil, err
-			}
-
-			if gauge, ok := m.(*metric.Gauge); ok {
-				if err := gauge.Update(metricValue); err != nil {
-					return nil, err
-				}
-			} else if counter, ok := m.(*metric.Counter); ok {
-				if err := counter.Update(metricValue); err != nil {
-					return nil, err
-				}
-			} else {
-				return nil, metric.ErrorInvalidMetricType
-			}
-
-			err = s.Storage.Add(ctx, m)
+			m, err = s.addNewMetric(ctx, metricType, metricName, metricValue)
 			if err != nil {
 				return nil, err
 			}
 		}
 	} else {
-		err = s.Storage.Update(ctx, m, metricValue)
+		err = s.updateMetric(ctx, m, metricValue)
 		if err != nil {
 			return nil, err
 		}
@@ -121,6 +146,28 @@ func (s *HTTPServer) DTOFromMetric(m metric.Metric) (*dto.Metrics, error) {
 
 }
 
+// UpdateJSONHandler handles an HTTP POST request with a single metric in JSON format.
+//
+// It expects a JSON body representing a metric (either `gauge` or `counter`) as defined by dto.Metrics.
+//
+// If the metric is valid, it updates the internal metric storage and returns the updated metric as JSON.
+//
+// Returns:
+//   - 400 Bad Request: if the input is invalid or contains an unsupported metric type
+//   - 500 Internal Server Error: if updating or retrieving the metric fails
+//   - 200 OK: with the updated metric in JSON format
+//
+// Example JSON body:
+//
+//	{
+//	  "id": "Alloc",
+//	  "type": "gauge",
+//	  "value": 123.4
+//	}
+//
+// Supported metric types:
+//   - gauge (float64)
+//   - counter (int64)
 func (s *HTTPServer) UpdateJSONHandler(c echo.Context) error {
 
 	ctx := c.Request().Context()
@@ -152,7 +199,7 @@ func (s *HTTPServer) UpdateJSONHandler(c echo.Context) error {
 		return c.String(http.StatusBadRequest, metric.ErrorInvalidMetricType.Error())
 	}
 
-	m, err := s.updateMetric(ctx, mDTO.MType, mDTO.ID, metricValue)
+	m, err := s.updateMetricByValue(ctx, mDTO.MType, mDTO.ID, metricValue)
 	if err != nil {
 		s.logger.Errorw("Error updating metric", "err", err)
 
@@ -181,6 +228,22 @@ func (s *HTTPServer) UpdateJSONHandler(c echo.Context) error {
 	return c.JSON(http.StatusOK, result)
 }
 
+// UpdateHandler handles an HTTP POST request that updates a metric using URL path parameters.
+//
+// Expected URL path parameters:
+//   - :type  — metric type ("gauge" or "counter")
+//   - :name  — metric name
+//   - :value — metric value (float64 for gauge, int64 for counter)
+//
+// Example request:
+//
+//	POST /update/counter/requests/42
+//	POST /update/gauge/temperature/36.6
+//
+// Responses:
+//   - 200 OK: if the metric was successfully updated
+//   - 400 Bad Request: if the type, name, or value is invalid
+//   - 500 Internal Server Error: if an unexpected error occurred
 func (s *HTTPServer) UpdateHandler(c echo.Context) error {
 
 	ctx := c.Request().Context()
@@ -189,7 +252,7 @@ func (s *HTTPServer) UpdateHandler(c echo.Context) error {
 	metricName := c.Param("name")
 	metricValue := c.Param("value")
 
-	_, err := s.updateMetric(ctx, metricType, metricName, metricValue)
+	_, err := s.updateMetricByValue(ctx, metricType, metricName, metricValue)
 
 	if err != nil {
 
@@ -206,6 +269,33 @@ func (s *HTTPServer) UpdateHandler(c echo.Context) error {
 	return c.String(http.StatusOK, "OK")
 }
 
+// ValueJSONHandler handles an HTTP POST request that retrieves the current value of a metric specified in JSON format.
+//
+// It expects a JSON body with the metric's `id` and `type` (either "gauge" or "counter").
+//
+// If the metric exists, the response includes the same metric object with the `value` or `delta` field populated.
+//
+// Example request:
+//
+//	POST /value/
+//	{
+//	  "id": "Alloc",
+//	  "type": "gauge"
+//	}
+//
+// Example response:
+//
+//	{
+//	  "id": "Alloc",
+//	  "type": "gauge",
+//	  "value": 123.45
+//	}
+//
+// Responses:
+//   - 200 OK: if the metric exists and its value is returned
+//   - 400 Bad Request: if the request body is invalid
+//   - 404 Not Found: if the metric does not exist
+//   - 500 Internal Server Error: if a server-side error occurs
 func (s *HTTPServer) ValueJSONHandler(c echo.Context) error {
 
 	ctx := c.Request().Context()
@@ -237,6 +327,21 @@ func (s *HTTPServer) ValueJSONHandler(c echo.Context) error {
 	return c.JSON(http.StatusOK, mDTO)
 }
 
+// ValueHandler handles an HTTP GET request that returns the current value of a metric,
+// specified via URL path parameters.
+//
+// Expected URL path parameters:
+//   - :type — metric type ("gauge" or "counter")
+//   - :name — metric name
+//
+// Example request:
+//
+//	GET /value/counter/requests
+//	GET /value/gauge/temperature
+//
+// Responses:
+//   - 200 OK: returns the current value of the requested metric as plain text
+//   - 404 Not Found: if the metric does not exist
 func (s *HTTPServer) ValueHandler(c echo.Context) error {
 
 	ctx := c.Request().Context()
@@ -253,6 +358,14 @@ func (s *HTTPServer) ValueHandler(c echo.Context) error {
 	return c.String(http.StatusOK, fmt.Sprintf("%v", m.GetValue()))
 }
 
+// ListHandler handles an HTTP GET request that renders a list of all stored metrics.
+//
+// It retrieves all available metrics from the storage, sorts them alphabetically by name,
+// and renders them using the "list.html" template.
+//
+// Responses:
+//   - 200 OK: renders the list of metrics
+//   - 500 Internal Server Error: if metrics could not be retrieved from storage
 func (s *HTTPServer) ListHandler(c echo.Context) error {
 
 	ctx := c.Request().Context()
@@ -270,6 +383,15 @@ func (s *HTTPServer) ListHandler(c echo.Context) error {
 	return c.Render(http.StatusOK, "list.html", metrics)
 }
 
+// PingHandler handles a health check request to verify database connectivity.
+//
+// If the storage implements the DBStorage interface, it performs a database ping.
+// If the ping is successful, it returns HTTP 200 with "OK".
+// If the ping fails or the storage does not support DB access, it returns an error.
+//
+// Responses:
+//   - 200 OK: if the database is reachable
+//   - 500 Internal Server Error: if the ping fails or the storage does not support Ping
 func (s *HTTPServer) PingHandler(c echo.Context) error {
 
 	ctx := c.Request().Context()
@@ -289,6 +411,32 @@ func (s *HTTPServer) PingHandler(c echo.Context) error {
 
 }
 
+// UpdatesJSONHandler handles an HTTP POST request that updates multiple metrics in batch via JSON.
+//
+// It expects a JSON array of metric objects (either `gauge` or `counter`) as input.
+// Each object is converted to an internal metric and passed to a batch update operation.
+//
+// After updating, it retrieves and returns the updated metrics with their current values.
+//
+// Example request:
+//
+//	POST /updates/
+//	[
+//	  {"id": "requests", "type": "counter", "delta": 5},
+//	  {"id": "temperature", "type": "gauge", "value": 36.6}
+//	]
+//
+// Example response:
+//
+//	[
+//	  {"id": "requests", "type": "counter", "delta": 105},
+//	  {"id": "temperature", "type": "gauge", "value": 36.6}
+//	]
+//
+// Responses:
+//   - 200 OK: if all metrics were successfully updated
+//   - 400 Bad Request: if input is malformed or update fails
+//   - 500 Internal Server Error: if retrieval or transformation fails
 func (s *HTTPServer) UpdatesJSONHandler(c echo.Context) error {
 
 	ctx := c.Request().Context()

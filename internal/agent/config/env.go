@@ -7,8 +7,8 @@ import (
 )
 
 func parseEnv(config *Config) {
-	if addr, ok := os.LookupEnv("ADDRESS"); ok && addr != "" {
-		config.EndpointAddr = addr
+	if envVar, ok := os.LookupEnv("ADDRESS"); ok && envVar != "" {
+		config.EndpointAddr = envVar
 	}
 	if envVar, ok := os.LookupEnv("REPORT_INTERVAL"); ok {
 		val, err := strconv.Atoi(envVar)
@@ -24,4 +24,16 @@ func parseEnv(config *Config) {
 		}
 		config.PollInterval = time.Duration(val) * time.Second
 	}
+	if envVar, ok := os.LookupEnv("KEY"); ok && envVar != "" {
+		config.Key = envVar
+	}
+
+	if envVar, ok := os.LookupEnv("RATE_LIMIT"); ok && envVar != "" {
+		val, err := strconv.Atoi(envVar)
+		if err != nil {
+			panic(err)
+		}
+		config.SendRateLimit = val
+	}
+
 }

@@ -28,6 +28,7 @@ func CreateBufferedLogger(buf *bytes.Buffer) *zap.SugaredLogger {
 
 func TestHTTPServer_RequestResponseInfoMiddleware(t *testing.T) {
 	address := "http://localhost:8080"
+	key := "secretkey"
 	stor := memory.NewMemStorage()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
@@ -47,7 +48,7 @@ func TestHTTPServer_RequestResponseInfoMiddleware(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			s := NewHTTPServer(ctx, address, stor, log)
+			s := NewHTTPServer(ctx, address, key, stor, log)
 			e := s.ConfigureRoutes("../../web/template")
 
 			request := httptest.NewRequest(tt.method, tt.url, nil)

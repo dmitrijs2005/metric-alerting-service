@@ -11,10 +11,14 @@ import (
 	"github.com/pressly/goose/v3"
 )
 
+// PostgresClient provides a database-backed implementation of metric storage.
+// It uses *sql.DB internally and supports transactional operations via DBExecutor.
 type PostgresClient struct {
 	db *sql.DB
 }
 
+// NewPostgresClient creates a new PostgresClient using the given DSN (Data Source Name).
+// It opens a connection using the pgx driver and returns an initialized client.
 func NewPostgresClient(dsn string) (*PostgresClient, error) {
 
 	db, err := sql.Open("pgx", dsn)
@@ -25,14 +29,17 @@ func NewPostgresClient(dsn string) (*PostgresClient, error) {
 	return &PostgresClient{db}, nil
 }
 
+// Close closes the underlying database connection.
 func (c *PostgresClient) Close() error {
 	return c.db.Close()
 }
 
+// Ping checks whether the database connection is alive using PingContext.
 func (c *PostgresClient) Ping(ctx context.Context) error {
 	return c.db.PingContext(ctx)
 }
 
+// RunMigrations applies database schema migrations using goose.
 func (c *PostgresClient) RunMigrations(ctx context.Context) error {
 	goose.SetBaseFS(nil) // default is os.DirFS(".")
 
@@ -43,6 +50,8 @@ func (c *PostgresClient) RunMigrations(ctx context.Context) error {
 	return nil
 }
 
+// RetrieveAll fetches all stored metrics from the database and converts them
+// into the metric.Metric interface representation.
 func (c *PostgresClient) RetrieveAll(ctx context.Context) ([]metric.Metric, error) {
 
 	var t metric.MetricType
@@ -54,7 +63,7 @@ func (c *PostgresClient) RetrieveAll(ctx context.Context) ([]metric.Metric, erro
 
 	result := make([]metric.Metric, 0)
 
-	rows, err := retryWithResult(ctx, func() (*sql.Rows, error) {
+	rows, err := common.RetryWithResult(ctx, func() (*sql.Rows, error) {
 		r, err := c.db.QueryContext(ctx, s)
 		return r, err
 	})
@@ -107,6 +116,7 @@ func (c *PostgresClient) RetrieveAll(ctx context.Context) ([]metric.Metric, erro
 
 }
 
+// ExecuteAdd inserts a metric using the provided DBExecutor (e.g. tx or db).
 func (c *PostgresClient) ExecuteAdd(ctx context.Context, exec DBExecutor, m metric.Metric) error {
 	var mvi sql.NullInt64
 	var mvf sql.NullFloat64
@@ -125,7 +135,7 @@ func (c *PostgresClient) ExecuteAdd(ctx context.Context, exec DBExecutor, m metr
 
 	s := "insert into metrics (metric_type, metric_name, metric_value_int, metric_value_float) values ($1, $2, $3, $4)"
 
-	_, err := retryWithResult(ctx, func() (sql.Result, error) {
+	_, err := common.RetryWithResult(ctx, func() (sql.Result, error) {
 		r, err := exec.ExecContext(ctx, s, m.GetType(), m.GetName(), mvi, mvf)
 		return r, err
 	})
@@ -133,10 +143,13 @@ func (c *PostgresClient) ExecuteAdd(ctx context.Context, exec DBExecutor, m metr
 	return err
 }
 
+// Add inserts a new metric into the database.
+// If the metric already exists, this will result in a conflict.
 func (c *PostgresClient) Add(ctx context.Context, m metric.Metric) error {
 	return c.ExecuteAdd(ctx, c.db, m)
 }
 
+// ExecuteUpdate updates a metric using the provided DBExecutor.
 func (c *PostgresClient) ExecuteUpdate(ctx context.Context, exec DBExecutor, m metric.Metric, v interface{}) error {
 
 	s := "update metrics set "
@@ -151,7 +164,7 @@ func (c *PostgresClient) ExecuteUpdate(ctx context.Context, exec DBExecutor, m m
 
 	s += "where metric_type = $2 and metric_name = $3"
 
-	_, err := retryWithResult(ctx, func() (sql.Result, error) {
+	_, err := common.RetryWithResult(ctx, func() (sql.Result, error) {
 		r, err := exec.ExecContext(ctx, s, v, m.GetType(), m.GetName())
 		return r, err
 	})
@@ -160,10 +173,13 @@ func (c *PostgresClient) ExecuteUpdate(ctx context.Context, exec DBExecutor, m m
 
 }
 
+// Update modifies the value of an existing metric.
+// Counters are incremented; gauges are overwritten.
 func (c *PostgresClient) Update(ctx context.Context, m metric.Metric, v interface{}) error {
 	return c.ExecuteUpdate(ctx, c.db, m, v)
 }
 
+// ExecuteRetrieve fetches a single metric using the provided DBExecutor.
 func (c *PostgresClient) ExecuteRetrieve(ctx context.Context, exec DBExecutor, t metric.MetricType, n string) (metric.Metric, error) {
 
 	var mvi sql.NullInt64
@@ -171,7 +187,7 @@ func (c *PostgresClient) ExecuteRetrieve(ctx context.Context, exec DBExecutor, t
 
 	s := "select metric_value_int, metric_value_float from metrics where metric_type=$1 and metric_name=$2"
 
-	_, err := retryWithResult(ctx, func() (*sql.Row, error) {
+	_, err := common.RetryWithResult(ctx, func() (*sql.Row, error) {
 		r := exec.QueryRowContext(ctx, s, t, n)
 		err := r.Scan(&mvi, &mvf)
 		return r, err
@@ -201,10 +217,13 @@ func (c *PostgresClient) ExecuteRetrieve(ctx context.Context, exec DBExecutor, t
 	return m, nil
 }
 
+// Retrieve fetches a single metric by type and name.
 func (c *PostgresClient) Retrieve(ctx context.Context, t metric.MetricType, n string) (metric.Metric, error) {
 	return c.ExecuteRetrieve(ctx, c.db, t, n)
 }
 
+// UpdateBatch updates a slice of metrics using a transaction.
+// New metrics are inserted; existing ones are updated appropriately.
 func (c *PostgresClient) UpdateBatch(ctx context.Context, metrics *[]metric.Metric) error {
 
 	tx, err := c.db.Begin()

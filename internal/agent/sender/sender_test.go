@@ -1,13 +1,16 @@
 package sender
 
 import (
+	"bytes"
+	"compress/gzip"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/dmitrijs2005/metric-alerting-service/internal/collector"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/agent/collector"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
 	"github.com/stretchr/testify/assert"
 )
@@ -37,14 +40,24 @@ func TestMetricAgent_SendMetric(t *testing.T) {
 			agent := &Sender{
 				ServerURL:      mockServer.URL,
 				ReportInterval: 10 * time.Second,
+				GzipWriterPool: &sync.Pool{
+					New: func() interface{} {
+						w, err := gzip.NewWriterLevel(nil, gzip.BestSpeed)
+						if err != nil {
+							panic(fmt.Sprintf("gzip.NewWriterLevel failed: %v", err))
+						}
+						return w
+					},
+				},
+				BufferPool: &sync.Pool{
+					New: func() interface{} {
+						return new(bytes.Buffer)
+					},
+				},
 			}
 
-			var wg sync.WaitGroup
-			wg.Add(1)
+			agent.SendMetric(tt.metric)
 
-			agent.SendMetric(tt.metric, &wg)
-
-			wg.Wait()
 		})
 	}
 }
@@ -73,6 +86,6 @@ func TestMetricAgent_SendMetrics(t *testing.T) {
 	agent.Data.Store(metric1.GetName(), metric1)
 	agent.Data.Store(metric2.GetName(), metric2)
 
-	agent.SendMetrics()
+	agent.SendAllMetricsInOneBatch()
 
 }
