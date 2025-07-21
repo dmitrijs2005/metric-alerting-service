@@ -110,7 +110,7 @@ func (s *HTTPServer) CompressingMiddleware(next echo.HandlerFunc) echo.HandlerFu
 		if strings.Contains(req.Header.Get("Accept-Encoding"), "gzip") {
 
 			// создаём gzip.Writer поверх текущего w
-			gw, err := NewGzipWriter(w, resp)
+			gw, err := NewGzipWriter(w, resp, s.GzipWriterPool)
 
 			if err != nil {
 				return echo.NewHTTPError(http.StatusInternalServerError, "Cannot initialize Gzip")

@@ -24,6 +24,8 @@ type Sender struct {
 	Key            string
 	SendRateLimit  int
 	Jobs           chan metric.Metric
+	GzipWriterPool *sync.Pool
+	BufferPool     *sync.Pool
 }
 
 func NewSender(data *sync.Map, reportInterval time.Duration, serverURL string, key string, sendRateLimit int) *Sender {
@@ -34,6 +36,20 @@ func NewSender(data *sync.Map, reportInterval time.Duration, serverURL string, k
 		Key:            key,
 		SendRateLimit:  sendRateLimit,
 		Jobs:           make(chan metric.Metric),
+		GzipWriterPool: &sync.Pool{
+			New: func() interface{} {
+				w, err := gzip.NewWriterLevel(nil, gzip.BestSpeed)
+				if err != nil {
+					panic(fmt.Sprintf("gzip.NewWriterLevel failed: %v", err))
+				}
+				return w
+			},
+		},
+		BufferPool: &sync.Pool{
+			New: func() interface{} {
+				return new(bytes.Buffer)
+			},
+		},
 	}
 }
 
@@ -45,8 +61,12 @@ func (s *Sender) worker(ind int, jobs <-chan metric.Metric) {
 	defer common.WriteToConsole(fmt.Sprintf("%s exited", label))
 
 	for j := range jobs {
-		s.SendMetric(j)
-		common.WriteToConsole(fmt.Sprintf("%s sent metric %s", label, j.GetName()))
+		err := s.SendMetric(j)
+		if err != nil {
+			common.WriteToConsole(fmt.Sprintf("Error sending metric %v", err))
+		} else {
+			common.WriteToConsole(fmt.Sprintf("%s sent metric %s", label, j.GetName()))
+		}
 	}
 
 }
@@ -90,8 +110,15 @@ func (s *Sender) SendMetric(m metric.Metric) error {
 		return common.ErrorMarshallingJSON
 	}
 
-	buf := bytes.NewBuffer(nil)
-	zb := gzip.NewWriter(buf)
+	buf := s.BufferPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	zb := s.GzipWriterPool.Get().(*gzip.Writer)
+	zb.Reset(buf)
+
+	defer func() {
+		s.GzipWriterPool.Put(zb)
+		s.BufferPool.Put(buf)
+	}()
 
 	_, err = zb.Write(jsonData)
 	if err != nil {
@@ -123,6 +150,9 @@ func (s *Sender) SendMetric(m metric.Metric) error {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("request failed with status: %d %s", resp.StatusCode, resp.Status)
+	}
 	return nil
 }
 

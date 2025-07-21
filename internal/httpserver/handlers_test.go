@@ -463,11 +463,6 @@ func TestHTTPServer_updateMetric(t *testing.T) {
 				t.Errorf("HTTPServer.updateMetric() error = %v, wantErr %v", err, tt.wantErr)
 			}
 
-			elements, _ := s.Storage.RetrieveAll(ctx)
-			for _, b := range elements {
-				fmt.Println(b.GetValue())
-			}
-
 			m, err := s.retrieveMetric(ctx, string(tt.args.m.GetType()), tt.args.m.GetName())
 			if err != nil {
 				t.Errorf("HTTPServer.updateMetric() error = %v, wantErr %v", err, tt.wantErr)
@@ -700,5 +695,87 @@ func TestHTTPServer_UpdatesJSONHandler(t *testing.T) {
 			}
 
 		})
+	}
+}
+
+func BenchmarkHTTPServer_UpdateHandler(b *testing.B) {
+	s := prepareTestServer()
+	e := echo.New()
+
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	c.SetParamNames("type", "name", "value")
+	c.SetParamValues("counter", "counter1", "1")
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = s.UpdateHandler(c)
+	}
+}
+
+func BenchmarkHTTPServer_ValueHandler(b *testing.B) {
+	s := prepareTestServer()
+	e := echo.New()
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	c.SetParamNames("type", "name")
+	c.SetParamValues("counter", "counter1")
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = s.ValueHandler(c)
+	}
+}
+
+func BenchmarkHTTPServer_UpdateJSONHandler(b *testing.B) {
+	s := prepareTestServer()
+	e := echo.New()
+
+	metric := &dto.Metrics{
+		ID:    "counter1",
+		MType: "counter",
+		Delta: int64Ptr(1),
+	}
+	body, _ := json.Marshal(metric)
+
+	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+
+		_ = s.UpdateJSONHandler(c)
+	}
+
+}
+
+func BenchmarkHTTPServer_ValueJSONHandler(b *testing.B) {
+	s := prepareTestServer()
+	e := echo.New()
+
+	metric := &dto.Metrics{
+		ID:    "counter1",
+		MType: "counter",
+	}
+	body, _ := json.Marshal(metric)
+
+	for i := 0; i < b.N; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+
+		_ = s.ValueJSONHandler(c)
 	}
 }
