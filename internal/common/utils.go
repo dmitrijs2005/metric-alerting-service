@@ -1,3 +1,5 @@
+// Package common provides shared utilities, error types, logging helpers,
+// cryptographic functions, and retry mechanisms used across the application.
 package common
 
 import (
@@ -54,7 +56,9 @@ var (
 	ExpBackoff time.Duration = 2 * time.Second
 )
 
-// function that processes retries
+// RetryWithResult retries the provided request function up to MaxRetries times with exponential backoff.
+// It stops retrying if the error is not considered retriable or if the context is canceled.
+// Returns the result of the request or the last encountered error.
 func RetryWithResult[T any](ctx context.Context, request func() (T, error)) (T, error) {
 	var result T
 	var err error

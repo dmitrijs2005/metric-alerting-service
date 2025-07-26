@@ -1,3 +1,5 @@
+// Package sender is responsible for preparing and sending metrics to the monitoring server.
+// It supports batching, gzip compression, optional AES-256 signature, and concurrent workers.
 package sender
 
 import (

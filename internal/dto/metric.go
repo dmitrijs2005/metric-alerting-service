@@ -1,3 +1,5 @@
+// Package dto defines data transfer objects used for communication between the agent and the server.
+// It includes representations of metrics in JSON format for both gauge and counter types.
 package dto
 
 type Metrics struct {

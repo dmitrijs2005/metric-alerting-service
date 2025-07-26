@@ -1,3 +1,5 @@
+// Package collector implements a metrics collector from runtime and system sources.
+// It updates metric values such as memory statistics, CPU usage, and additional custom data.
 package collector
 
 import (

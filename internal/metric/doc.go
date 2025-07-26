@@ -16,5 +16,4 @@
 //	case metric.MetricTypeCounter:
 //	    fmt.Println("Counter:", m.GetValue())
 //	}
-
 package metric
