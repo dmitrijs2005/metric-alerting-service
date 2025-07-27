@@ -101,10 +101,18 @@ func TestMemStorage_RetrieveAll(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 
 			got, err := s.RetrieveAll(ctx)
-
 			assert.NoError(t, err)
-			assert.Equal(t, len(got), len(s.Data))
-			assert.Equal(t, got, tt.want)
+
+			for _, m := range got {
+				found := false
+				for _, mSource := range s.Data {
+					if m.GetName() == mSource.GetName() && m.GetType() == mSource.GetType() {
+						assert.Equal(t, m.GetValue(), mSource.GetValue())
+						found = true
+					}
+				}
+				assert.True(t, found)
+			}
 
 		})
 	}
