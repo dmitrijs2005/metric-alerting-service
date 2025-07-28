@@ -6,11 +6,11 @@ import "time"
 
 type Config struct {
 	EndpointAddr    string
-	StoreInterval   time.Duration
 	FileStoragePath string
-	Restore         bool
 	DatabaseDSN     string
 	Key             string
+	StoreInterval   time.Duration
+	Restore         bool
 }
 
 func LoadConfig() *Config {

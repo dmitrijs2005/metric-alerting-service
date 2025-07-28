@@ -6,9 +6,9 @@ import "time"
 
 type Config struct {
 	EndpointAddr   string
+	Key            string
 	ReportInterval time.Duration
 	PollInterval   time.Duration
-	Key            string
 	SendRateLimit  int
 }
 

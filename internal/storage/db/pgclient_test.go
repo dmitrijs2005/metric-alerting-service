@@ -109,12 +109,12 @@ func RunRepositoryTests(t *testing.T, ctx context.Context, client *PostgresClien
 			value  interface{}
 		}
 		tests := []struct {
-			name      string
 			args      args
 			wantValue interface{}
+			name      string
 		}{
-			{"Test Counter update", args{&metric.Counter{Name: "counter1"}, int64(1)}, int64(2)},
-			{"Test Gauge update", args{&metric.Gauge{Name: "gauge1"}, float64(4.15)}, float64(4.15)},
+			{name: "Test Counter update", args: args{&metric.Counter{Name: "counter1"}, int64(1)}, wantValue: int64(2)},
+			{name: "Test Gauge update", args: args{&metric.Gauge{Name: "gauge1"}, float64(4.15)}, wantValue: float64(4.15)},
 		}
 
 		for _, tt := range tests {

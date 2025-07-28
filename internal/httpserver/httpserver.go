@@ -15,18 +15,17 @@ import (
 )
 
 type HTTPServer struct {
-	ctx            context.Context
-	Address        string
-	StoreInterval  int
-	Restore        bool
+	GzipWriterPool *sync.Pool
 	Storage        storage.Storage
 	Saver          file.DumpSaver
-	Key            string
-	GzipWriterPool *sync.Pool
 	logger         logger.Logger
+	Address        string
+	Key            string
+	StoreInterval  int
+	Restore        bool
 }
 
-func NewHTTPServer(ctx context.Context, address string, key string, storage storage.Storage, logger logger.Logger) *HTTPServer {
+func NewHTTPServer(address string, key string, storage storage.Storage, logger logger.Logger) *HTTPServer {
 
 	pool := &sync.Pool{
 		New: func() interface{} {
@@ -38,7 +37,7 @@ func NewHTTPServer(ctx context.Context, address string, key string, storage stor
 		},
 	}
 
-	return &HTTPServer{ctx: ctx, Address: address, Key: key, Storage: storage, logger: logger, GzipWriterPool: pool}
+	return &HTTPServer{Address: address, Key: key, Storage: storage, logger: logger, GzipWriterPool: pool}
 }
 
 func (s *HTTPServer) ConfigureRoutes(templatePath string) *echo.Echo {
@@ -69,7 +68,7 @@ func (s *HTTPServer) ConfigureRoutes(templatePath string) *echo.Echo {
 	return e
 }
 
-func (s *HTTPServer) Run() error {
+func (s *HTTPServer) Run(ctx context.Context) error {
 
 	e := s.ConfigureRoutes("web/template")
 
@@ -79,7 +78,7 @@ func (s *HTTPServer) Run() error {
 	}
 
 	go func() {
-		<-s.ctx.Done()
+		<-ctx.Done()
 		s.logger.Info("Stopping HTTP server...")
 
 		if err := server.Shutdown(context.Background()); err != nil {

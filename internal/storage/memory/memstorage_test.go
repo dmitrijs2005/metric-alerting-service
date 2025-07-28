@@ -52,9 +52,9 @@ func TestMemStorage_Retrieve(t *testing.T) {
 		metricName string
 	}
 	tests := []struct {
-		name    string
 		args    args
 		want    metric.Metric
+		name    string
 		wantErr bool
 	}{
 		{name: "Retrieve Existing Metric (counter)", args: args{metricType: metric.MetricTypeCounter, metricName: metric1.Name}, want: metric1, wantErr: false},
@@ -128,10 +128,10 @@ func TestMemStorage_Add(t *testing.T) {
 		metric metric.Metric
 	}
 	tests := []struct {
-		name    string
 		args    args
-		wantErr bool
+		name    string
 		err     string
+		wantErr bool
 	}{
 		{name: "Add second metric", args: args{metric: metric2}, wantErr: false},
 		{name: "Add same metric, should be an error", args: args{metric: metric1}, wantErr: true, err: common.ErrorMetricAlreadyExists.Error()},
@@ -180,12 +180,12 @@ func TestMemStorage_Update(t *testing.T) {
 		value  interface{}
 	}
 	tests := []struct {
-		name      string
 		args      args
 		wantValue interface{}
+		name      string
 	}{
-		{"Test Counter update", args{mcb, int64(1)}, int64(2)},
-		{"Test Gauge update", args{mgb, float64(1)}, float64(1)},
+		{name: "Test Counter update", args: args{mcb, int64(1)}, wantValue: int64(2)},
+		{name: "Test Gauge update", args: args{mgb, float64(1)}, wantValue: float64(1)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

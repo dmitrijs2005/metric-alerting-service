@@ -20,14 +20,14 @@ import (
 )
 
 type Sender struct {
-	ReportInterval time.Duration
-	ServerURL      string
-	Data           *sync.Map
-	Key            string
-	SendRateLimit  int
 	Jobs           chan metric.Metric
 	GzipWriterPool *sync.Pool
 	BufferPool     *sync.Pool
+	Data           *sync.Map
+	Key            string
+	ServerURL      string
+	ReportInterval time.Duration
+	SendRateLimit  int
 }
 
 func NewSender(data *sync.Map, reportInterval time.Duration, serverURL string, key string, sendRateLimit int) *Sender {
@@ -219,7 +219,8 @@ func (s *Sender) SendAllMetricsInOneBatch() error {
 
 	// signing if key is specified
 	if s.Key != "" {
-		sign, err := common.CreateAes256Signature(jsonData, s.Key)
+		var sign []byte
+		sign, err = common.CreateAes256Signature(jsonData, s.Key)
 		if err != nil {
 			return common.NewWrappedError("Error signing request", err)
 		}

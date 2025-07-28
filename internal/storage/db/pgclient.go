@@ -241,7 +241,7 @@ func (c *PostgresClient) UpdateBatch(ctx context.Context, metrics *[]metric.Metr
 
 		if err != nil {
 			if errors.Is(err, common.ErrorMetricDoesNotExist) {
-				err := c.ExecuteAdd(ctx, tx, metric)
+				err = c.ExecuteAdd(ctx, tx, metric)
 				if err != nil {
 					return err
 				}

@@ -18,14 +18,13 @@ import (
 // Example_UpdateHandler demonstrates how to use UpdateHandler with an in-memory HTTP server.
 func ExampleHTTPServer_UpdateHandler() {
 	// Creating dependencies
-	ctx := context.Background()
 	address := "localhost:8080"
 	basePath := "/"
 	storage := memory.NewMemStorage()
 	log := logger.GetLogger()
 
 	// Initializing server
-	srv := NewHTTPServer(ctx, address, basePath, storage, log)
+	srv := NewHTTPServer(address, basePath, storage, log)
 
 	// Echo instance
 	e := echo.New()
@@ -50,12 +49,11 @@ func ExampleHTTPServer_UpdateHandler() {
 }
 
 func ExampleHTTPServer_ValueHandler() {
-	ctx := context.Background()
 	storage := memory.NewMemStorage()
 	log := logger.GetLogger()
 
 	// Initializing server
-	srv := NewHTTPServer(ctx, "localhost:8080", "/", storage, log)
+	srv := NewHTTPServer("localhost:8080", "/", storage, log)
 
 	// Saving metric
 	err := storage.Add(context.Background(), &metric.Counter{Name: "requests", Value: 42})
@@ -81,12 +79,11 @@ func ExampleHTTPServer_ValueHandler() {
 }
 
 func ExampleHTTPServer_UpdateJSONHandler() {
-	ctx := context.Background()
 	storage := memory.NewMemStorage()
 	log := logger.GetLogger()
 
 	// Initializing server
-	srv := NewHTTPServer(ctx, "localhost:8080", "/", storage, log)
+	srv := NewHTTPServer("localhost:8080", "/", storage, log)
 
 	e := echo.New()
 	e.POST("/update/", srv.UpdateJSONHandler)
@@ -108,16 +105,15 @@ func ExampleHTTPServer_UpdateJSONHandler() {
 	fmt.Printf("%d %s", resp.StatusCode, strings.TrimSpace(string(body)))
 
 	// Output:
-	// 200 {"id":"temperature","type":"gauge","value":36.6}
+	// 200 {"value":36.6,"id":"temperature","type":"gauge"}
 }
 
 func ExampleHTTPServer_UpdatesJSONHandler() {
-	ctx := context.Background()
 	storage := memory.NewMemStorage()
 	log := logger.GetLogger()
 
 	// Initializing server
-	srv := NewHTTPServer(ctx, "localhost:8080", "/", storage, log)
+	srv := NewHTTPServer("localhost:8080", "/", storage, log)
 
 	e := echo.New()
 	e.POST("/updates/", srv.UpdatesJSONHandler)
@@ -142,7 +138,7 @@ func ExampleHTTPServer_UpdatesJSONHandler() {
 	fmt.Printf("%d %s", resp.StatusCode, strings.TrimSpace(string(body)))
 
 	// Output:
-	// 200 [{"id":"requests","type":"counter","delta":6},{"id":"load","type":"gauge","value":0.83}]
+	// 200 [{"delta":6,"id":"requests","type":"counter"},{"value":0.83,"id":"load","type":"gauge"}]
 }
 
 func ExampleHTTPServer_ValueJSONHandler() {
@@ -151,7 +147,7 @@ func ExampleHTTPServer_ValueJSONHandler() {
 	log := logger.GetLogger()
 
 	// Initializing server
-	srv := NewHTTPServer(ctx, "localhost:8080", "/", storage, log)
+	srv := NewHTTPServer("localhost:8080", "/", storage, log)
 
 	_ = storage.Add(ctx, &metric.Gauge{Name: "temperature", Value: 36.6})
 
@@ -175,5 +171,5 @@ func ExampleHTTPServer_ValueJSONHandler() {
 	fmt.Printf("%d %s", resp.StatusCode, strings.TrimSpace(string(body)))
 
 	// Output:
-	// 200 {"id":"temperature","type":"gauge","value":36.6}
+	// 200 {"value":36.6,"id":"temperature","type":"gauge"}
 }

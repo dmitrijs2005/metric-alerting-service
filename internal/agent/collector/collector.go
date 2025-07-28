@@ -18,8 +18,8 @@ import (
 )
 
 type Collector struct {
-	PollInterval time.Duration
 	Data         sync.Map
+	PollInterval time.Duration
 }
 
 func NewCollector(pollInterval time.Duration) *Collector {
