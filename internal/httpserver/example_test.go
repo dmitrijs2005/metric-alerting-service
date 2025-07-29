@@ -57,6 +57,9 @@ func ExampleHTTPServer_ValueHandler() {
 
 	// Saving metric
 	err := storage.Add(context.Background(), &metric.Counter{Name: "requests", Value: 42})
+	if err != nil {
+		panic(err)
+	}
 
 	e := echo.New()
 	e.GET("/value/:type/:name", srv.ValueHandler)

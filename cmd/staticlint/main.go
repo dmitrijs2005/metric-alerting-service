@@ -10,14 +10,18 @@ func main() {
 
 	var allChecks []*analysis.Analyzer
 
-	// adding staticcheck SA class analyzers
+	// adding staticcheck analyzers
 	staticcheck := staticlint.GetStaticCheckAnalyzers()
 
-	// adding staticcheck Passes analyzers
+	// adding Passes analyzers
 	passes := staticlint.GetPassesAnalyzers()
+
+	// adding some public analyzers
+	public := staticlint.GetPublicAnalyzers()
 
 	allChecks = append(allChecks, staticcheck...)
 	allChecks = append(allChecks, passes...)
+	allChecks = append(allChecks, public...)
 
 	multichecker.Main(
 		allChecks...,
