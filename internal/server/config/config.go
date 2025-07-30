@@ -1,16 +1,16 @@
+// Package config handles the configuration for the server component,
+// including parsing environment variables and command-line flags.
 package config
 
 import "time"
 
-//var config Config
-
 type Config struct {
 	EndpointAddr    string
-	StoreInterval   time.Duration
 	FileStoragePath string
-	Restore         bool
 	DatabaseDSN     string
 	Key             string
+	StoreInterval   time.Duration
+	Restore         bool
 }
 
 func LoadConfig() *Config {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/dmitrijs2005/metric-alerting-service/internal/common"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
+	"github.com/dmitrijs2005/metric-alerting-service/migrations"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 )
@@ -41,13 +42,15 @@ func (c *PostgresClient) Ping(ctx context.Context) error {
 
 // RunMigrations applies database schema migrations using goose.
 func (c *PostgresClient) RunMigrations(ctx context.Context) error {
-	goose.SetBaseFS(nil) // default is os.DirFS(".")
 
-	if err := goose.UpContext(ctx, c.db, "./migrations"); err != nil {
+	goose.SetBaseFS(migrations.Migrations) // Вот здесь передаём embed FS!
+
+	if err := goose.UpContext(ctx, c.db, "."); err != nil {
 		return err
 	}
 
 	return nil
+
 }
 
 // RetrieveAll fetches all stored metrics from the database and converts them
@@ -238,7 +241,7 @@ func (c *PostgresClient) UpdateBatch(ctx context.Context, metrics *[]metric.Metr
 
 		if err != nil {
 			if errors.Is(err, common.ErrorMetricDoesNotExist) {
-				err := c.ExecuteAdd(ctx, tx, metric)
+				err = c.ExecuteAdd(ctx, tx, metric)
 				if err != nil {
 					return err
 				}

@@ -35,3 +35,19 @@ git fetch template && git checkout template/main .github
 ```
 sudo docker run --name some-postgres -e POSTGRES_PASSWORD=mysecretpassword -p 5432:5432 -d postgres
 ```
+
+# staticlint
+
+Мультианализатор на базе `golang.org/x/tools/go/analysis/multichecker`.
+
+## Сборка бинарника:
+```bash
+go build -o staticlint ./cmd/staticlint
+./staticlint ./...
+```
+
+## Запуск
+
+```bash
+go run ./cmd/staticlint ./...
+```

@@ -12,6 +12,7 @@ func TestParseEnv(t *testing.T) {
 
 	// Test cases
 	tests := []struct {
+		expected        *Config
 		name            string
 		addr            string
 		storeInterval   string
@@ -19,11 +20,19 @@ func TestParseEnv(t *testing.T) {
 		restore         string
 		databaseDSN     string
 		key             string
-		expected        *Config
 	}{
-		{"Test1 ip:port", "127.0.0.1:9090", "30", "/tmp/save.sav", "true", "db1", "secretkey1", &Config{"127.0.0.1:9090", 30 * time.Second, "/tmp/save.sav", true, "db1", "secretkey1"}},
-		{"Test1 :port", ":8080", "25", "/tmp/save2.sav", "false", "db2", "secretkey2", &Config{":8080", 25 * time.Second, "/tmp/save2.sav", false, "db2", "secretkey2"}}, // Default value
-		{"Test1 empty string", "", "25", "/tmp/save2.sav", "false", "db3", "secretkey3", &Config{"", 25 * time.Second, "/tmp/save2.sav", false, "db3", "secretkey3"}},    // Edge case: empty value
+		{name: "Test1 ip:port", addr: "127.0.0.1:9090", storeInterval: "30", fileStoragePath: "/tmp/save.sav",
+			restore: "true", databaseDSN: "db1", key: "secretkey1",
+			expected: &Config{EndpointAddr: "127.0.0.1:9090", StoreInterval: 30 * time.Second, FileStoragePath: "/tmp/save.sav",
+				Restore: true, DatabaseDSN: "db1", Key: "secretkey1"}},
+		{name: "Test1 :port", addr: ":8080", storeInterval: "25", fileStoragePath: "/tmp/save2.sav",
+			restore: "false", databaseDSN: "db2", key: "secretkey2",
+			expected: &Config{EndpointAddr: ":8080", StoreInterval: 25 * time.Second, FileStoragePath: "/tmp/save2.sav",
+				Restore: false, DatabaseDSN: "db2", Key: "secretkey2"}}, // Default value
+		{name: "Test1 empty string", addr: "", storeInterval: "25", fileStoragePath: "/tmp/save2.sav",
+			restore: "false", databaseDSN: "db3", key: "secretkey3",
+			expected: &Config{EndpointAddr: "", StoreInterval: 25 * time.Second, FileStoragePath: "/tmp/save2.sav",
+				Restore: false, DatabaseDSN: "db3", Key: "secretkey3"}}, // Edge case: empty value
 	}
 
 	for _, tt := range tests {

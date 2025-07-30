@@ -1,3 +1,5 @@
+// Package memory provides an in-memory implementation of the Storage interface
+// for storing and retrieving metric values without persistent storage.
 package memory
 
 import (

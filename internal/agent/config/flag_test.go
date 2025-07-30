@@ -14,14 +14,15 @@ func TestParseFlags(t *testing.T) {
 
 	// Test cases
 	tests := []struct {
+		expected    *Config
 		name        string
 		args        []string
 		expectPanic bool
-		expected    *Config
 	}{
-		{"Test1 OK", []string{"cmd", "-a", "127.0.0.1:9090", "-r", "20", "-p", "5", "-k", "secretkey", "-l", "3"}, false, &Config{"127.0.0.1:9090", 20 * time.Second, 5 * time.Second, "secretkey", 3}},
-		{"Test2 incorrect report interval", []string{"cmd", "-a", "127.0.0.1:9090", "-r", "a", "-p", "5"}, true, &Config{}},
-		{"Test3 incorrect poll interval", []string{"cmd", "-a", "127.0.0.1:9090", "-r", "20", "-p", "a"}, true, &Config{}},
+		{name: "Test1 OK", args: []string{"cmd", "-a", "127.0.0.1:9090", "-r", "20", "-p", "5", "-k", "secretkey", "-l", "3"}, expectPanic: false,
+			expected: &Config{EndpointAddr: "127.0.0.1:9090", ReportInterval: 20 * time.Second, PollInterval: 5 * time.Second, Key: "secretkey", SendRateLimit: 3}},
+		{name: "Test2 incorrect report interval", args: []string{"cmd", "-a", "127.0.0.1:9090", "-r", "a", "-p", "5"}, expectPanic: true, expected: &Config{}},
+		{name: "Test3 incorrect poll interval", args: []string{"cmd", "-a", "127.0.0.1:9090", "-r", "20", "-p", "a"}, expectPanic: true, expected: &Config{}},
 	}
 
 	for _, tt := range tests {

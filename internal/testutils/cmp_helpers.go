@@ -1,3 +1,4 @@
+// Package testutils provides helper functions for testing, such as struct comparison assertions.
 package testutils
 
 import (

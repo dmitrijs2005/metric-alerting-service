@@ -1,3 +1,5 @@
+// Package collector implements a metrics collector from runtime and system sources.
+// It updates metric values such as memory statistics, CPU usage, and additional custom data.
 package collector
 
 import (
@@ -16,8 +18,8 @@ import (
 )
 
 type Collector struct {
-	PollInterval time.Duration
 	Data         sync.Map
+	PollInterval time.Duration
 }
 
 func NewCollector(pollInterval time.Duration) *Collector {

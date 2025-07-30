@@ -1,3 +1,6 @@
+// Package server initializes and runs the main application server.
+// It configures storage backends, handles graceful shutdown, restores and saves metric dumps,
+// and starts the HTTP server for metric collection.
 package server
 
 import (
@@ -20,7 +23,6 @@ import (
 type App struct {
 	config *config.Config
 	logger logger.Logger
-	saver  *file.FileSaver
 }
 
 func NewApp(logger logger.Logger) (*App, error) {
@@ -108,8 +110,8 @@ func (app *App) startHTTPServer(ctx context.Context, cancelFunc context.CancelFu
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		s := httpserver.NewHTTPServer(ctx, app.config.EndpointAddr, app.config.Key, s, app.logger)
-		if err := s.Run(); err != nil {
+		s := httpserver.NewHTTPServer(app.config.EndpointAddr, app.config.Key, s, app.logger)
+		if err := s.Run(ctx); err != nil {
 			cancelFunc()
 		}
 	}()

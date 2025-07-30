@@ -1,3 +1,6 @@
+// Package agent implements an agent for collecting and sending metrics.
+// It defines the structures and functions required for initializing and running
+// metric collectors (collector) and senders (sender), as well as handling shutdown signals.
 package agent
 
 import (

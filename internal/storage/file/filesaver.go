@@ -13,8 +13,8 @@ import (
 
 // FileSaver is a file-based implementation of the DumpSaver interface.
 type FileSaver struct {
-	FileStoragePath string          // Path to the dump file
 	Storage         storage.Storage // Underlying metric storage
+	FileStoragePath string          // Path to the dump file
 }
 
 func (fs *FileSaver) SaveDump(ctx context.Context) error {
@@ -97,5 +97,5 @@ func (fs *FileSaver) RestoreDump(ctx context.Context) error {
 }
 
 func NewFileSaver(fileStoragePath string, storage storage.Storage) *FileSaver {
-	return &FileSaver{fileStoragePath, storage}
+	return &FileSaver{FileStoragePath: fileStoragePath, Storage: storage}
 }

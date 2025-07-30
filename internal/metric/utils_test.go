@@ -37,15 +37,15 @@ func TestNewMetric(t *testing.T) {
 		metricName string
 	}
 	tests := []struct {
-		name    string
 		args    args
 		want    Metric
-		wantErr bool
 		err     error
+		name    string
+		wantErr bool
 	}{
-		{"Test Counter OK ", args{c.GetType(), c.GetName()}, c, false, nil},
-		{"Test Gauge OK ", args{g.GetType(), g.GetName()}, g, false, nil},
-		{"Test Error", args{"unknown", "unknown"}, nil, true, ErrorInvalidMetricType},
+		{name: "Test Counter OK ", args: args{c.GetType(), c.GetName()}, want: c, wantErr: false, err: nil},
+		{name: "Test Gauge OK ", args: args{g.GetType(), g.GetName()}, want: g, wantErr: false, err: nil},
+		{name: "Test Error", args: args{"unknown", "unknown"}, want: nil, wantErr: true, err: ErrorInvalidMetricType},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
