@@ -70,8 +70,6 @@ func (s *HTTPServer) SignCheckMiddleware(next echo.HandlerFunc) echo.HandlerFunc
 		hdr := c.Response().Header()
 		hdr.Set("HashSHA256", base64.RawStdEncoding.EncodeToString(responseSign))
 
-		//_, writeErr := c.Response().Writer.Write(resBody.Bytes())
-
 		return nil
 	}
 }

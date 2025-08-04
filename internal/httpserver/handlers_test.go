@@ -232,9 +232,6 @@ func TestHTTPServer_ValueJSONHandler(t *testing.T) {
 	addr := "http://localhost:8080"
 	stor := memory.NewMemStorage()
 
-	// metric1 := &metric.Counter{Name: "counter1", Value: 1}
-	// metric2 := &metric.Gauge{Name: "gauge1", Value: 1.234}
-
 	stor.Data["counter|counter1"] = metric1
 	stor.Data["gauge|gauge1"] = metric2
 
