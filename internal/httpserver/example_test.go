@@ -108,7 +108,7 @@ func ExampleHTTPServer_UpdateJSONHandler() {
 	fmt.Printf("%d %s", resp.StatusCode, strings.TrimSpace(string(body)))
 
 	// Output:
-	// 200 {"value":36.6,"id":"temperature","type":"gauge"}
+	// 200 {"id":"temperature","type":"gauge","value":36.6}
 }
 
 func ExampleHTTPServer_UpdatesJSONHandler() {
@@ -141,7 +141,7 @@ func ExampleHTTPServer_UpdatesJSONHandler() {
 	fmt.Printf("%d %s", resp.StatusCode, strings.TrimSpace(string(body)))
 
 	// Output:
-	// 200 [{"delta":6,"id":"requests","type":"counter"},{"value":0.83,"id":"load","type":"gauge"}]
+	// 200 [{"id":"requests","type":"counter","delta":6},{"id":"load","type":"gauge","value":0.83}]
 }
 
 func ExampleHTTPServer_ValueJSONHandler() {
@@ -174,5 +174,5 @@ func ExampleHTTPServer_ValueJSONHandler() {
 	fmt.Printf("%d %s", resp.StatusCode, strings.TrimSpace(string(body)))
 
 	// Output:
-	// 200 {"value":36.6,"id":"temperature","type":"gauge"}
+	// 200 {"id":"temperature","type":"gauge","value":36.6}
 }

@@ -19,6 +19,8 @@ import (
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
 )
 
+// Sender handles sending metrics to the monitoring server.
+// It supports compression, signature, batching, and concurrent processing.
 type Sender struct {
 	Jobs           chan metric.Metric
 	GzipWriterPool *sync.Pool
@@ -30,6 +32,17 @@ type Sender struct {
 	SendRateLimit  int
 }
 
+// NewSender creates and returns a new Sender instance.
+//
+// Parameters:
+//   - data: pointer to a sync.Map containing metrics.
+//   - reportInterval: how often metrics are sent.
+//   - serverURL: base URL of the monitoring server.
+//   - key: optional secret key for signing payloads.
+//   - sendRateLimit: number of concurrent workers.
+//
+// Returns:
+//   - *Sender: a new Sender instance.
 func NewSender(data *sync.Map, reportInterval time.Duration, serverURL string, key string, sendRateLimit int) *Sender {
 	return &Sender{
 		ReportInterval: reportInterval,
@@ -73,6 +86,14 @@ func (s *Sender) worker(ind int, jobs <-chan metric.Metric) {
 
 }
 
+// MetricToDto converts a metric.Metric into a DTO (Data Transfer Object) for JSON serialization.
+//
+// Parameters:
+//   - m: the metric to convert.
+//
+// Returns:
+//   - *dto.Metrics: the converted DTO.
+//   - error: if the value type is invalid for its metric type.
 func (s *Sender) MetricToDto(m metric.Metric) (*dto.Metrics, error) {
 	data := &dto.Metrics{ID: m.GetName(), MType: string(m.GetType())}
 
@@ -94,6 +115,13 @@ func (s *Sender) MetricToDto(m metric.Metric) (*dto.Metrics, error) {
 	return data, nil
 }
 
+// SendMetric sends a single metric to the /update/ endpoint with gzip compression.
+//
+// Parameters:
+//   - m: the metric to be sent.
+//
+// Returns:
+//   - error: if conversion, compression, or network transmission fails.
 func (s *Sender) SendMetric(m metric.Metric) error {
 
 	url := s.ServerURL
@@ -158,6 +186,11 @@ func (s *Sender) SendMetric(m metric.Metric) error {
 	return nil
 }
 
+// SendAllMetricsInOneBatch sends all metrics in a single batch request to /updates/ endpoint.
+// It uses gzip compression and optionally adds AES-256 signature.
+//
+// Returns:
+//   - error: in case of serialization, compression, or network issues.
 func (s *Sender) SendAllMetricsInOneBatch() error {
 
 	url := s.ServerURL
@@ -241,6 +274,10 @@ func (s *Sender) SendAllMetricsInOneBatch() error {
 
 }
 
+// SendAllMetrics pushes all collected metrics to the jobs channel for worker processing.
+//
+// Returns:
+//   - error: always nil (included for interface compatibility).
 func (s *Sender) SendAllMetrics() error {
 	// Concurrent reading (safe)
 	s.Data.Range(func(key, val interface{}) bool {
@@ -253,6 +290,12 @@ func (s *Sender) SendAllMetrics() error {
 	return nil
 }
 
+// Run launches the sender loop that periodically sends all metrics.
+// It starts worker goroutines and listens for context cancellation.
+//
+// Parameters:
+//   - ctx: context for graceful shutdown.
+//   - wg: WaitGroup to signal when sender has stopped.
 func (s *Sender) Run(ctx context.Context, wg *sync.WaitGroup) {
 
 	defer wg.Done()

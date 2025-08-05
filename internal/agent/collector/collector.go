@@ -1,5 +1,6 @@
-// Package collector implements a metrics collector from runtime and system sources.
-// It updates metric values such as memory statistics, CPU usage, and additional custom data.
+// Package collector provides a metrics collector that gathers runtime
+// and system-level metrics such as memory usage, CPU utilization, and
+// additional custom statistics.
 package collector
 
 import (
@@ -17,11 +18,13 @@ import (
 	"github.com/shirou/gopsutil/mem"
 )
 
+// Collector gathers and stores various runtime and system metrics.
 type Collector struct {
 	Data         sync.Map
 	PollInterval time.Duration
 }
 
+// NewCollector creates a new Collector instance with the specified polling interval.
 func NewCollector(pollInterval time.Duration) *Collector {
 	return &Collector{
 		PollInterval: pollInterval,
@@ -99,6 +102,8 @@ func (c *Collector) updateAdditionalMetrics() {
 	c.updateCounter("PollCount", 1)
 }
 
+// RunStatUpdater starts collecting runtime memory stats and custom metrics
+// periodically, until the context is cancelled.
 func (c *Collector) RunStatUpdater(ctx context.Context, wg *sync.WaitGroup) {
 
 	defer wg.Done()
@@ -116,6 +121,8 @@ func (c *Collector) RunStatUpdater(ctx context.Context, wg *sync.WaitGroup) {
 
 }
 
+// RunPSUtilMetricsUpdater periodically collects memory and CPU metrics
+// using gopsutil, until the context is cancelled.
 func (c *Collector) RunPSUtilMetricsUpdater(ctx context.Context, wg *sync.WaitGroup) {
 
 	defer wg.Done()
@@ -159,10 +166,12 @@ func (c *Collector) updatePSUtilsCPUMetrics(ctx context.Context) {
 
 }
 
+// GetIndexedMetricNameSprintf returns a metric name with a numeric suffix using fmt.Sprintf.
 func GetIndexedMetricNameSprintf(name string, index int) string {
 	return fmt.Sprintf("%s%d", name, index)
 }
 
+// GetIndexedMetricNameItoa returns a metric name with a numeric suffix using strconv.Itoa.
 func GetIndexedMetricNameItoa(name string, index int) string {
 	return name + strconv.Itoa(index)
 }

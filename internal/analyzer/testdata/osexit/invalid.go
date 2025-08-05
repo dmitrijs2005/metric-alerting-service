@@ -1,8 +1,6 @@
 package main
 
-import (
-	"os"
-)
+import "os"
 
 func main() {
 	os.Exit(1) // want "avoid using os.Exit inside main()"
