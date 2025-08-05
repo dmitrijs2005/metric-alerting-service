@@ -47,15 +47,15 @@ func TestHTTPServer_UpdateHandler(t *testing.T) {
 	s := memory.NewMemStorage()
 
 	type want struct {
-		code        int
 		response    string
 		contentType string
+		code        int
 	}
 	tests := []struct {
-		want   want
 		name   string
 		method string
 		url    string
+		want   want
 	}{
 
 		{name: "Counter OK", method: http.MethodPost, url: "/update/counter/counter1/1", want: want{code: 200, response: "OK", contentType: "text/plain; charset=UTF-8"}},
@@ -100,15 +100,15 @@ func TestHTTPServer_UpdateHandler_404_405(t *testing.T) {
 	s := memory.NewMemStorage()
 
 	type want struct {
-		code        int
 		response    string
 		contentType string
+		code        int
 	}
 	tests := []struct {
-		want   want
 		name   string
 		method string
 		url    string
+		want   want
 	}{
 		{name: "Get - Method Not Allowed", method: http.MethodGet, url: "/update/gauge/gauge1/1.234", want: want{code: 405, response: "Method Not Allowed\n", contentType: "text/plain; charset=utf-8"}},
 		{name: "No metric name - Not Found", method: http.MethodPost, url: "/update/counter", want: want{code: 404, response: "Not Found\n", contentType: "text/plain; charset=utf-8"}},
@@ -135,8 +135,8 @@ func TestHTTPServer_UpdateHandler_404_405(t *testing.T) {
 
 func TestHTTPServer_ValueHandler(t *testing.T) {
 
-	metric1 := &metric.Counter{Name: "counter1", Value: 1}
-	metric2 := &metric.Gauge{Name: "gauge1", Value: 1.234}
+	m1 := &metric.Counter{Name: "counter1", Value: 1}
+	m2 := &metric.Gauge{Name: "gauge1", Value: 1.234}
 
 	addr := "http://localhost:8080"
 	stor := memory.NewMemStorage()
@@ -145,19 +145,19 @@ func TestHTTPServer_ValueHandler(t *testing.T) {
 	stor.Data["gauge|gauge1"] = metric2
 
 	type want struct {
-		code        int
 		response    string
 		contentType string
+		code        int
 	}
 	tests := []struct {
-		want   want
 		name   string
 		method string
 		url    string
+		want   want
 	}{
 
-		{name: "Counter OK", method: http.MethodGet, url: "/value/counter/counter1", want: want{code: 200, response: fmt.Sprintf("%v", metric1.GetValue()), contentType: "text/plain; charset=UTF-8"}},
-		{name: "Gauge OK", method: http.MethodGet, url: "/value/gauge/gauge1", want: want{code: 200, response: fmt.Sprintf("%v", metric2.GetValue()), contentType: "text/plain; charset=UTF-8"}},
+		{name: "Counter OK", method: http.MethodGet, url: "/value/counter/counter1", want: want{code: 200, response: fmt.Sprintf("%v", m1.GetValue()), contentType: "text/plain; charset=UTF-8"}},
+		{name: "Gauge OK", method: http.MethodGet, url: "/value/gauge/gauge1", want: want{code: 200, response: fmt.Sprintf("%v", m2.GetValue()), contentType: "text/plain; charset=UTF-8"}},
 		{name: "Unnown metric", method: http.MethodGet, url: "/value/gauge/unknwn", want: want{code: 404, response: common.ErrorMetricDoesNotExist.Error(), contentType: "text/plain; charset=UTF-8"}},
 	}
 	for _, tt := range tests {
@@ -190,14 +190,14 @@ func TestHTTPServer_ValueHandler(t *testing.T) {
 
 func TestHTTPServer_ListHandler(t *testing.T) {
 
-	metric1 := &metric.Counter{Name: "counter1", Value: 1}
-	metric2 := &metric.Gauge{Name: "gauge1", Value: 1.234}
+	m1 := &metric.Counter{Name: "counter1", Value: 1}
+	m2 := &metric.Gauge{Name: "gauge1", Value: 1.234}
 
 	addr := "http://localhost:8080"
 	stor := memory.NewMemStorage()
 
-	stor.Data["counter|counter1"] = metric1
-	stor.Data["gauge|gauge1"] = metric2
+	stor.Data["counter|counter1"] = m1
+	stor.Data["gauge|gauge1"] = m2
 
 	s := &HTTPServer{
 		Address: addr,
@@ -219,8 +219,8 @@ func TestHTTPServer_ListHandler(t *testing.T) {
 
 	if assert.NoError(t, s.ListHandler(c)) {
 		assert.Equal(t, http.StatusOK, rec.Code)
-		assert.True(t, strings.Contains(rec.Body.String(), metric1.Name))
-		assert.True(t, strings.Contains(rec.Body.String(), metric1.Name))
+		assert.True(t, strings.Contains(rec.Body.String(), m1.Name))
+		assert.True(t, strings.Contains(rec.Body.String(), m2.Name))
 
 		assert.Equal(t, "text/html; charset=UTF-8", rec.Header().Get("Content-Type"))
 	}
@@ -232,24 +232,21 @@ func TestHTTPServer_ValueJSONHandler(t *testing.T) {
 	addr := "http://localhost:8080"
 	stor := memory.NewMemStorage()
 
-	metric1 := &metric.Counter{Name: "counter1", Value: 1}
-	metric2 := &metric.Gauge{Name: "gauge1", Value: 1.234}
-
 	stor.Data["counter|counter1"] = metric1
 	stor.Data["gauge|gauge1"] = metric2
 
 	type want struct {
-		code        int
 		response    *dto.Metrics
 		contentType string
+		code        int
 	}
 	tests := []struct {
-		want   want
 		name   string
 		method string
 		mtype  string
 		mname  string
 		mvalue interface{}
+		want   want
 	}{
 
 		{name: "Counter OK", method: http.MethodPost, mtype: "counter", mname: metric1.Name, mvalue: metric1.Value, want: want{code: 200, response: &dto.Metrics{ID: metric1.Name, Delta: &metric1.Value, MType: "counter"}, contentType: "application/json"}},
@@ -337,17 +334,17 @@ func TestHTTPServer_UpdateJSONHandler(t *testing.T) {
 	ctr1 := &metric.Counter{Name: "ctr1"}
 
 	type want struct {
-		code        int
 		name        string
-		value       int64
 		contentType string
+		value       int64
+		code        int
 	}
 	tests := []struct {
-		want   want
 		name   string
 		method string
-		mtype  metric.MetricType
 		mname  string
+		mtype  metric.MetricType
+		want   want
 		mvalue int64
 	}{
 
@@ -402,9 +399,9 @@ func TestHTTPServer_retrieveMetric(t *testing.T) {
 		metricName string
 	}
 	tests := []struct {
-		name    string
 		args    args
 		want    metric.Metric
+		name    string
 		wantErr bool
 	}{
 		{name: "Counter OK", args: args{string(metric.MetricTypeCounter), "counter1"}, want: &metric.Counter{Name: "counter1", Value: 1}},
@@ -432,26 +429,26 @@ func TestHTTPServer_updateMetric(t *testing.T) {
 	a := "http://localhost:8080"
 	s := memory.NewMemStorage()
 
-	metric1 := &metric.Counter{Name: "counter1", Value: 1}
-	metric2 := &metric.Gauge{Name: "gauge1", Value: 1.234}
+	m1 := &metric.Counter{Name: "counter1", Value: 1}
+	m2 := &metric.Gauge{Name: "gauge1", Value: 1.234}
 
-	s.Data["counter|counter1"] = metric1
-	s.Data["gauge|gauge1"] = metric2
+	s.Data["counter|counter1"] = m1
+	s.Data["gauge|gauge1"] = m2
 
 	ctx := context.Background()
 
 	type args struct {
-		m           metric.Metric
 		metricValue any
+		m           metric.Metric
 	}
 	tests := []struct {
-		name      string
-		args      args
-		wantErr   bool
 		wantValue any
+		args      args
+		name      string
+		wantErr   bool
 	}{
-		{name: "Counter OK", args: args{m: metric1, metricValue: int64(2)}, wantErr: false, wantValue: int64(3)},
-		{name: "Gauge OK", args: args{m: metric2, metricValue: float64(2.345)}, wantErr: false, wantValue: float64(2.345)},
+		{name: "Counter OK", args: args{m: m1, metricValue: int64(2)}, wantErr: false, wantValue: int64(3)},
+		{name: "Gauge OK", args: args{m: m2, metricValue: float64(2.345)}, wantErr: false, wantValue: float64(2.345)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -480,17 +477,17 @@ func TestHTTPServer_addNewMetric(t *testing.T) {
 	ctx := context.Background()
 
 	type args struct {
+		metricValue any
 		metricType  string
 		metricName  string
-		metricValue any
 	}
 	tests := []struct {
-		name    string
 		args    args
 		want    metric.Metric
+		name    string
 		wantErr bool
 	}{
-		{name: "Counter OK", args: args{"counter", "c2", int64(1)}, wantErr: false, want: &metric.Counter{Name: "c2", Value: int64(1)}},
+		{name: "Counter OK", args: args{metricType: "counter", metricName: "c2", metricValue: int64(1)}, wantErr: false, want: &metric.Counter{Name: "c2", Value: int64(1)}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -516,18 +513,18 @@ func TestHTTPServer_addNewMetric(t *testing.T) {
 
 func TestHTTPServer_newMetricWithValue(t *testing.T) {
 	type args struct {
+		metricValue any
 		metricType  string
 		metricName  string
-		metricValue any
 	}
 	tests := []struct {
-		name    string
 		args    args
 		want    metric.Metric
+		name    string
 		wantErr bool
 	}{
-		{name: "Counter", args: args{"counter", "c1", int64(1)}, wantErr: false, want: &metric.Counter{Name: "c1", Value: int64(1)}},
-		{name: "Gauge", args: args{"gauge", "g1", float64(1.234)}, wantErr: false, want: &metric.Gauge{Name: "g1", Value: float64(1.234)}},
+		{name: "Counter", args: args{metricType: "counter", metricName: "c1", metricValue: int64(1)}, wantErr: false, want: &metric.Counter{Name: "c1", Value: int64(1)}},
+		{name: "Gauge", args: args{metricType: "gauge", metricName: "g1", metricValue: float64(1.234)}, wantErr: false, want: &metric.Gauge{Name: "g1", Value: float64(1.234)}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -547,17 +544,17 @@ func TestHTTPServer_newMetricWithValue(t *testing.T) {
 func TestHTTPServer_updateMetricByValue(t *testing.T) {
 	ctx := context.Background()
 	type args struct {
+		metricValue interface{}
 		metricType  string
 		metricName  string
-		metricValue interface{}
 	}
 	tests := []struct {
-		name    string
 		args    args
 		want    metric.Metric
+		name    string
 		wantErr bool
 	}{
-		{name: "Counter", args: args{"counter", "c1", int64(1)}, wantErr: false, want: &metric.Counter{Name: "c1", Value: int64(1)}},
+		{name: "Counter", args: args{metricType: "counter", metricName: "c1", metricValue: int64(1)}, wantErr: false, want: &metric.Counter{Name: "c1", Value: int64(1)}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -580,8 +577,8 @@ func TestHTTPServer_fillValue(t *testing.T) {
 		r *dto.Metrics
 	}
 	tests := []struct {
-		name    string
 		args    args
+		name    string
 		wantErr bool
 	}{
 		{name: "OK", args: args{m: &metric.Counter{Name: "c1", Value: int64(1)}, r: &dto.Metrics{}}, wantErr: false},
@@ -602,12 +599,12 @@ func TestHTTPServer_MetricFromDto(t *testing.T) {
 		mDTO dto.Metrics
 	}
 	tests := []struct {
-		name    string
 		args    args
 		want    metric.Metric
+		name    string
 		wantErr bool
 	}{
-		{"ok", args{mDTO: dto.Metrics{ID: "m1", MType: "counter", Delta: int64Ptr(1)}}, &metric.Counter{Name: "m1", Value: 1}, false},
+		{name: "ok", args: args{mDTO: dto.Metrics{ID: "m1", MType: "counter", Delta: int64Ptr(1)}}, want: &metric.Counter{Name: "m1", Value: 1}, wantErr: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -626,12 +623,12 @@ func TestHTTPServer_MetricFromDto(t *testing.T) {
 
 func TestHTTPServer_DTOFromMetric(t *testing.T) {
 	tests := []struct {
-		name    string
 		m       metric.Metric
 		want    *dto.Metrics
+		name    string
 		wantErr bool
 	}{
-		{"ok", &metric.Counter{Name: "c1", Value: 1}, &dto.Metrics{ID: "c1", MType: "counter", Delta: int64Ptr(1)}, false},
+		{name: "ok", m: &metric.Counter{Name: "c1", Value: 1}, want: &dto.Metrics{ID: "c1", MType: "counter", Delta: int64Ptr(1)}, wantErr: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -681,15 +678,15 @@ func TestHTTPServer_UpdatesJSONHandler(t *testing.T) {
 				t.Errorf("HTTPServer.UpdatesJSONHandler() error = %v, wantErr %v", err, tt.wantErr)
 			}
 
-			for _, m := range tt.want {
-				m, err := s.retrieveMetric(ctx, string(m.GetType()), m.GetName())
+			for _, mwant := range tt.want {
+				m, err := s.retrieveMetric(ctx, string(mwant.GetType()), mwant.GetName())
 				if (err != nil) != tt.wantErr {
 					t.Errorf("HTTPServer.TestHTTPServer_UpdatesJSONHandler() error = %v, wantErr %v", err, tt.wantErr)
 					return
 				}
 
-				if m.GetValue() != m.GetValue() {
-					t.Errorf("error value: %v", m.GetValue())
+				if m.GetValue() != mwant.GetValue() {
+					t.Errorf("error value: %v %v ", m.GetValue(), mwant.GetValue())
 					return
 				}
 			}

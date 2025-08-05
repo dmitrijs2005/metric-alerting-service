@@ -18,14 +18,13 @@ import (
 // Example_UpdateHandler demonstrates how to use UpdateHandler with an in-memory HTTP server.
 func ExampleHTTPServer_UpdateHandler() {
 	// Creating dependencies
-	ctx := context.Background()
 	address := "localhost:8080"
 	basePath := "/"
 	storage := memory.NewMemStorage()
 	log := logger.GetLogger()
 
 	// Initializing server
-	srv := NewHTTPServer(ctx, address, basePath, storage, log)
+	srv := NewHTTPServer(address, basePath, storage, log)
 
 	// Echo instance
 	e := echo.New()
@@ -50,15 +49,17 @@ func ExampleHTTPServer_UpdateHandler() {
 }
 
 func ExampleHTTPServer_ValueHandler() {
-	ctx := context.Background()
 	storage := memory.NewMemStorage()
 	log := logger.GetLogger()
 
 	// Initializing server
-	srv := NewHTTPServer(ctx, "localhost:8080", "/", storage, log)
+	srv := NewHTTPServer("localhost:8080", "/", storage, log)
 
 	// Saving metric
 	err := storage.Add(context.Background(), &metric.Counter{Name: "requests", Value: 42})
+	if err != nil {
+		panic(err)
+	}
 
 	e := echo.New()
 	e.GET("/value/:type/:name", srv.ValueHandler)
@@ -81,12 +82,11 @@ func ExampleHTTPServer_ValueHandler() {
 }
 
 func ExampleHTTPServer_UpdateJSONHandler() {
-	ctx := context.Background()
 	storage := memory.NewMemStorage()
 	log := logger.GetLogger()
 
 	// Initializing server
-	srv := NewHTTPServer(ctx, "localhost:8080", "/", storage, log)
+	srv := NewHTTPServer("localhost:8080", "/", storage, log)
 
 	e := echo.New()
 	e.POST("/update/", srv.UpdateJSONHandler)
@@ -112,12 +112,11 @@ func ExampleHTTPServer_UpdateJSONHandler() {
 }
 
 func ExampleHTTPServer_UpdatesJSONHandler() {
-	ctx := context.Background()
 	storage := memory.NewMemStorage()
 	log := logger.GetLogger()
 
 	// Initializing server
-	srv := NewHTTPServer(ctx, "localhost:8080", "/", storage, log)
+	srv := NewHTTPServer("localhost:8080", "/", storage, log)
 
 	e := echo.New()
 	e.POST("/updates/", srv.UpdatesJSONHandler)
@@ -151,7 +150,7 @@ func ExampleHTTPServer_ValueJSONHandler() {
 	log := logger.GetLogger()
 
 	// Initializing server
-	srv := NewHTTPServer(ctx, "localhost:8080", "/", storage, log)
+	srv := NewHTTPServer("localhost:8080", "/", storage, log)
 
 	_ = storage.Add(ctx, &metric.Gauge{Name: "temperature", Value: 36.6})
 

@@ -14,8 +14,8 @@ var (
 )
 
 type WrappedError struct {
-	Label string
 	Err   error
+	Label string
 }
 
 func NewWrappedError(label string, err error) *WrappedError {

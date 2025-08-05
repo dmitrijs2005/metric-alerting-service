@@ -21,11 +21,11 @@ func TestMetricAgent_SendMetric(t *testing.T) {
 	metric2 := &metric.Gauge{Name: "gauge1", Value: 1}
 
 	tests := []struct {
-		name   string
 		metric metric.Metric
+		name   string
 	}{
-		{"Test Counter", metric1},
-		{"Test Gauge", metric2},
+		{name: "Test Counter", metric: metric1},
+		{name: "Test Gauge", metric: metric2},
 	}
 
 	for _, tt := range tests {

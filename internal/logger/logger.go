@@ -1,3 +1,5 @@
+// Package logger defines a logging interface and wrapper around zap.Logger,
+// providing helper methods and a default logger instance.
 package logger
 
 import "go.uber.org/zap"

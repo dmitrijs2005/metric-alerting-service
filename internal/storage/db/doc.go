@@ -15,5 +15,4 @@
 //	    _, err := db.ExecContext(ctx, "INSERT INTO users(name) VALUES(?)", name)
 //	    return err
 //	}
-
 package db
