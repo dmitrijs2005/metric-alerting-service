@@ -10,6 +10,7 @@ import (
 
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage/memory"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -30,6 +31,7 @@ func TestHTTPServer_RequestResponseInfoMiddleware(t *testing.T) {
 	address := "http://localhost:8080"
 	key := "secretkey"
 	stor := memory.NewMemStorage()
+	cryptoKey := ""
 	_, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
 
@@ -48,7 +50,9 @@ func TestHTTPServer_RequestResponseInfoMiddleware(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			s := NewHTTPServer(address, key, stor, log)
+			s, err := NewHTTPServer(address, key, stor, log, cryptoKey)
+			require.NoError(t, err)
+
 			e := s.ConfigureRoutes("../../web/template")
 
 			request := httptest.NewRequest(tt.method, tt.url, nil)

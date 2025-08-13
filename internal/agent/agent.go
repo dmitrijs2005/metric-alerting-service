@@ -21,15 +21,19 @@ type MetricAgent struct {
 	sender    *sender.Sender
 }
 
-func NewMetricAgent(cfg *config.Config) *MetricAgent {
+func NewMetricAgent(cfg *config.Config) (*MetricAgent, error) {
 
 	collector := collector.NewCollector(cfg.PollInterval)
-	sender := sender.NewSender(&collector.Data, cfg.ReportInterval, cfg.EndpointAddr, cfg.Key, cfg.SendRateLimit)
+	sender, err := sender.NewSender(&collector.Data, cfg.ReportInterval, cfg.EndpointAddr, cfg.Key, cfg.SendRateLimit, cfg.CryptoKey)
+
+	if err != nil {
+		return nil, err
+	}
 
 	return &MetricAgent{
 		collector: collector,
 		sender:    sender,
-	}
+	}, nil
 }
 
 func (a *MetricAgent) initSignalHandler(cancelFunc context.CancelFunc) {

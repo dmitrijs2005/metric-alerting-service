@@ -19,6 +19,11 @@ func main() {
 	buildinfo.PrintBuildData(os.Stdout)
 
 	cfg := config.LoadConfig()
-	a := agent.NewMetricAgent(cfg)
+	a, err := agent.NewMetricAgent(cfg)
+
+	if err != nil {
+		panic(err)
+	}
+
 	a.Run()
 }

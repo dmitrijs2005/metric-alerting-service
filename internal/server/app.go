@@ -110,8 +110,13 @@ func (app *App) startHTTPServer(ctx context.Context, cancelFunc context.CancelFu
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		s := httpserver.NewHTTPServer(app.config.EndpointAddr, app.config.Key, s, app.logger)
+		s, err := httpserver.NewHTTPServer(app.config.EndpointAddr, app.config.Key, s, app.logger, app.config.CryptoKey)
+		if err != nil {
+			app.logger.Error(err)
+			cancelFunc()
+		}
 		if err := s.Run(ctx); err != nil {
+			app.logger.Error(err)
 			cancelFunc()
 		}
 	}()

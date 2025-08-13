@@ -12,6 +12,7 @@ func parseFlags(config *Config) {
 	pollInterval := flag.Int("p", 2, "poll interval (in seconds)")
 	flag.StringVar(&config.Key, "k", "", "signing key")
 	sendRateLimit := flag.Int("l", 3, "sending rate limit")
+	flag.StringVar(&config.CryptoKey, "crypto-key", "", "crypto key")
 
 	flag.Parse()
 

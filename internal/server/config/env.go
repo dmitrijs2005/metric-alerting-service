@@ -39,4 +39,8 @@ func parseEnv(config *Config) {
 		config.Key = envVar
 	}
 
+	if envVar, ok := os.LookupEnv("CRYPTO_KEY"); ok {
+		config.CryptoKey = envVar
+	}
+
 }

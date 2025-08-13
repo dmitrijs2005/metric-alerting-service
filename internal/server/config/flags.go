@@ -19,6 +19,8 @@ func parseFlags(config *Config) {
 	flag.StringVar(&config.Key, "k", "", "signing key")
 	flag.BoolVar(&config.Restore, "r", true, "restore saved metrics")
 
+	flag.StringVar(&config.CryptoKey, "crypto-key", "", "crypto key")
+
 	flag.Parse()
 
 	config.StoreInterval = time.Duration(storeInterval) * time.Second

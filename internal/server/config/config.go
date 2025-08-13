@@ -11,6 +11,7 @@ type Config struct {
 	Key             string
 	StoreInterval   time.Duration
 	Restore         bool
+	CryptoKey       string
 }
 
 func LoadConfig() *Config {
