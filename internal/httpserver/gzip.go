@@ -16,6 +16,7 @@ type GzipWriter struct {
 	Writer         *gzip.Writer
 	HeaderProvider HeaderProvider
 	GzipWriterPool *sync.Pool
+	used           bool
 }
 
 func (w *GzipWriter) Write(b []byte) (int, error) {
@@ -24,6 +25,7 @@ func (w *GzipWriter) Write(b []byte) (int, error) {
 	ct := w.HeaderProvider.Header().Get("Content-Type")
 
 	if ContentTypeIsCompressable(ct) {
+		w.used = true
 		return w.Writer.Write(b)
 	}
 
@@ -34,7 +36,12 @@ func (w *GzipWriter) Write(b []byte) (int, error) {
 
 func (w *GzipWriter) Close() error {
 	defer w.GzipWriterPool.Put(w.Writer)
-	return w.Writer.Close()
+	if w.used {
+		return w.Writer.Close()
+	}
+
+	w.Writer.Reset(io.Discard)
+	return nil
 }
 
 func NewGzipWriter(w http.ResponseWriter, hp HeaderProvider, pool *sync.Pool) (*GzipWriter, error) {

@@ -18,7 +18,10 @@ func main() {
 	flag.Parse()
 
 	// Generate a 2048-bits key
-	privateKey, publicKey := generateKeyPair(2048)
+	privateKey, publicKey, err := generateKeyPair(2048)
+	if err != nil {
+		panic(err)
+	}
 
 	privKeyString := exportPrivKeyAsPEMStr(privateKey)
 	writePEMFile(fmt.Sprintf("%s/%s", outputDir, "private.pem"), []byte(privKeyString), 0400)

@@ -37,15 +37,12 @@ func exportPrivKeyAsPEMStr(privkey *rsa.PrivateKey) string {
 // generateKeyPair creates a new RSA key pair with the requested key size in bits.
 // It returns the private key and the corresponding public key. If key generation
 // fails, the error is printed to stdout and the returned keys may be nil.
-func generateKeyPair(bits int) (*rsa.PrivateKey, *rsa.PublicKey) {
-	// This method requires a random number of bits.
+func generateKeyPair(bits int) (*rsa.PrivateKey, *rsa.PublicKey, error) {
 	privateKey, err := rsa.GenerateKey(rand.Reader, bits)
 	if err != nil {
-		fmt.Println("Error: ", err)
+		return nil, nil, fmt.Errorf("failed to generate RSA key: %w", err)
 	}
-
-	// The public key is part of the PrivateKey struct
-	return privateKey, &privateKey.PublicKey
+	return privateKey, &privateKey.PublicKey, nil
 }
 
 // writePEMFile writes raw bytes to a file named fn with the provided permissions.
