@@ -35,6 +35,7 @@ func TestParseFlags(t *testing.T) {
 			os.Args = tt.args
 
 			config := &Config{}
+			config.LoadDefaults()
 			parseFlags(config)
 
 			testutils.AssertEqualStructs(t, config, tt.expected)

@@ -4,6 +4,16 @@ package config
 
 import "time"
 
+func (c *Config) LoadDefaults() {
+	c.DatabaseDSN = ""
+	c.EndpointAddr = ":8080"
+	c.StoreInterval = time.Duration(30) * time.Second
+	c.FileStoragePath = "/tmp/tmp.sav"
+	c.Key = ""
+	c.Restore = true
+	c.CryptoKey = ""
+}
+
 type Config struct {
 	EndpointAddr    string
 	FileStoragePath string
@@ -16,7 +26,11 @@ type Config struct {
 
 func LoadConfig() *Config {
 	config := &Config{}
+	config.LoadDefaults()
+
+	parseJson(config)
 	parseFlags(config)
 	parseEnv(config)
+
 	return config
 }
