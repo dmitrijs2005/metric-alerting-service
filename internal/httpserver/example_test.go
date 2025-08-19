@@ -25,7 +25,7 @@ func ExampleHTTPServer_UpdateHandler() {
 	cryptoKey := ""
 
 	// Initializing server
-	srv, err := NewHTTPServer(address, key, storage, log, cryptoKey)
+	srv, err := NewHTTPServer(address, key, storage, log, cryptoKey, "")
 	if err != nil {
 		panic(err)
 	}
@@ -60,7 +60,7 @@ func ExampleHTTPServer_ValueHandler() {
 	cryptoKey := ""
 
 	// Initializing server
-	srv, err := NewHTTPServer(address, key, storage, log, cryptoKey)
+	srv, err := NewHTTPServer(address, key, storage, log, cryptoKey, "")
 	if err != nil {
 		panic(err)
 	}
@@ -99,7 +99,7 @@ func ExampleHTTPServer_UpdateJSONHandler() {
 	cryptoKey := ""
 
 	// Initializing server
-	srv, err := NewHTTPServer(address, key, storage, log, cryptoKey)
+	srv, err := NewHTTPServer(address, key, storage, log, cryptoKey, "")
 	if err != nil {
 		panic(err)
 	}
@@ -135,7 +135,7 @@ func ExampleHTTPServer_UpdatesJSONHandler() {
 	cryptoKey := ""
 
 	// Initializing server
-	srv, err := NewHTTPServer(address, key, storage, log, cryptoKey)
+	srv, err := NewHTTPServer(address, key, storage, log, cryptoKey, "")
 	if err != nil {
 		panic(err)
 	}
@@ -175,7 +175,7 @@ func ExampleHTTPServer_ValueJSONHandler() {
 	cryptoKey := ""
 
 	// Initializing server
-	srv, err := NewHTTPServer(address, key, storage, log, cryptoKey)
+	srv, err := NewHTTPServer(address, key, storage, log, cryptoKey, "")
 	if err != nil {
 		panic(err)
 	}

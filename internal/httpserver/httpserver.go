@@ -26,9 +26,11 @@ type HTTPServer struct {
 	StoreInterval  int
 	Restore        bool
 	PrivateKey     *rsa.PrivateKey
+	TemplatePath   string
+	wg             sync.WaitGroup
 }
 
-func NewHTTPServer(address string, key string, storage storage.Storage, logger logger.Logger, cryptoKey string) (*HTTPServer, error) {
+func NewHTTPServer(address string, key string, storage storage.Storage, logger logger.Logger, cryptoKey string, templatePath string) (*HTTPServer, error) {
 
 	var privKey *rsa.PrivateKey
 	var err error
@@ -50,14 +52,14 @@ func NewHTTPServer(address string, key string, storage storage.Storage, logger l
 		},
 	}
 
-	return &HTTPServer{Address: address, Key: key, Storage: storage, logger: logger, GzipWriterPool: pool, PrivateKey: privKey}, nil
+	return &HTTPServer{Address: address, Key: key, Storage: storage, logger: logger, GzipWriterPool: pool, PrivateKey: privKey, TemplatePath: templatePath}, nil
 }
 
-func (s *HTTPServer) ConfigureRoutes(templatePath string) *echo.Echo {
+func (s *HTTPServer) ConfigureRoutes() *echo.Echo {
 
 	// Load templates
 	t := &Template{
-		templates: template.Must(template.ParseGlob(fmt.Sprintf("%s/*.html", templatePath))),
+		templates: template.Must(template.ParseGlob(fmt.Sprintf("%s/*.html", s.TemplatePath))),
 	}
 
 	// Echo instance
@@ -88,9 +90,7 @@ func (s *HTTPServer) middlewareIf(condtion bool, mw ...echo.MiddlewareFunc) []ec
 	return nil
 }
 
-func (s *HTTPServer) Run(ctx context.Context) error {
-
-	e := s.ConfigureRoutes("web/template")
+func (s *HTTPServer) Run(ctx context.Context, e *echo.Echo) error {
 
 	server := &http.Server{
 		Addr:    s.Address,

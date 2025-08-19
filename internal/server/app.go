@@ -34,7 +34,7 @@ func NewApp(logger logger.Logger) (*App, error) {
 func (app *App) initSignalHandler(cancelFunc context.CancelFunc) {
 	// Channel to catch OS signals.
 	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
 	go func() {
 		<-sigs
@@ -110,12 +110,15 @@ func (app *App) startHTTPServer(ctx context.Context, cancelFunc context.CancelFu
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		s, err := httpserver.NewHTTPServer(app.config.EndpointAddr, app.config.Key, s, app.logger, app.config.CryptoKey)
+		s, err := httpserver.NewHTTPServer(app.config.EndpointAddr, app.config.Key, s, app.logger, app.config.CryptoKey, "web/template")
 		if err != nil {
 			app.logger.Error(err)
 			cancelFunc()
 		}
-		if err := s.Run(ctx); err != nil {
+
+		e := s.ConfigureRoutes()
+
+		if err := s.Run(ctx, e); err != nil {
 			app.logger.Error(err)
 			cancelFunc()
 		}

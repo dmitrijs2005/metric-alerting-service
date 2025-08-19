@@ -60,10 +60,10 @@ func TestHTTPServer_RequestResponseInfoMiddleware(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			s, err := NewHTTPServer(address, key, stor, log, cryptoKey)
+			s, err := NewHTTPServer(address, key, stor, log, cryptoKey, "../../web/template")
 			require.NoError(t, err)
 
-			e := s.ConfigureRoutes("../../web/template")
+			e := s.ConfigureRoutes()
 
 			request := httptest.NewRequest(tt.method, tt.url, nil)
 			rec := httptest.NewRecorder()
