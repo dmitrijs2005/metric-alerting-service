@@ -1,91 +1,189 @@
 package sender
 
 import (
-	"bytes"
 	"compress/gzip"
-	"fmt"
+	"context"
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/dmitrijs2005/metric-alerting-service/internal/agent/collector"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/dto"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestMetricAgent_SendMetric(t *testing.T) {
+func TestMetricToDto_ValidGauge(t *testing.T) {
+	data := &sync.Map{}
+	s, err := NewSender(data, time.Second, "http://localhost", "", 1, "")
+	require.NoError(t, err)
 
-	metric1 := &metric.Counter{Name: "counter1", Value: 1}
-	metric2 := &metric.Gauge{Name: "gauge1", Value: 1}
+	m := metric.NewGauge("cpu_load")
+	m.Update(0.42)
 
-	tests := []struct {
-		metric metric.Metric
-		name   string
-	}{
-		{name: "Test Counter", metric: metric1},
-		{name: "Test Gauge", metric: metric2},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, http.MethodPost, r.Method, "Expected POST method")
-				assert.Equal(t, r.URL.Path, "/update/", "Unexpected URL path")
-				w.WriteHeader(http.StatusOK)
-			}))
-			defer mockServer.Close()
-
-			agent := &Sender{
-				ServerURL:      mockServer.URL,
-				ReportInterval: 10 * time.Second,
-				GzipWriterPool: &sync.Pool{
-					New: func() interface{} {
-						w, err := gzip.NewWriterLevel(nil, gzip.BestSpeed)
-						if err != nil {
-							panic(fmt.Sprintf("gzip.NewWriterLevel failed: %v", err))
-						}
-						return w
-					},
-				},
-				BufferPool: &sync.Pool{
-					New: func() interface{} {
-						return new(bytes.Buffer)
-					},
-				},
-			}
-
-			agent.SendMetric(tt.metric)
-
-		})
-	}
+	dto, err := s.MetricToDto(m)
+	require.NoError(t, err)
+	require.Equal(t, "cpu_load", dto.ID)
+	require.Equal(t, "gauge", dto.MType)
+	require.NotNil(t, dto.Value)
+	require.Equal(t, 0.42, *dto.Value)
 }
 
-func TestMetricAgent_SendMetrics(t *testing.T) {
+func TestSendMetric_Success(t *testing.T) {
+	received := make(chan []byte, 1)
 
-	metric1 := &metric.Counter{Name: "counter1", Value: 1}
-	metric2 := &metric.Gauge{Name: "gauge1", Value: 1}
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+		gr, err := gzip.NewReader(r.Body)
+		require.NoError(t, err)
+		defer gr.Close()
 
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, http.MethodPost, r.Method, "Expected POST method")
-		assert.Equal(t, r.URL.Path, "/updates/", "Unexpected URL path")
+		body, _ := io.ReadAll(gr)
+		received <- body
+
 		w.WriteHeader(http.StatusOK)
 	}))
-	defer mockServer.Close()
+	defer ts.Close()
 
-	collector := collector.NewCollector(1)
+	data := &sync.Map{}
+	s, _ := NewSender(data, time.Second, ts.URL, "", 1, "")
 
-	agent := &Sender{
-		ServerURL:      mockServer.URL,
-		ReportInterval: 10 * time.Second,
+	m := metric.NewGauge("cpu_load")
+	m.Update(1.23)
+
+	err := s.SendMetric(m)
+	require.NoError(t, err)
+
+	var got map[string]interface{}
+	require.NoError(t, json.Unmarshal(<-received, &got))
+	require.Equal(t, "cpu_load", got["id"])
+	require.Equal(t, "gauge", got["type"])
+}
+
+func TestSendAllMetricsInOneBatch_Success(t *testing.T) {
+	received := make(chan []byte, 1)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gr, _ := gzip.NewReader(r.Body)
+		defer gr.Close()
+		body, _ := io.ReadAll(gr)
+		received <- body
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+
+	data := &sync.Map{}
+	g := metric.NewGauge("temp")
+	g.Update(99.9)
+	data.Store("temp", g)
+
+	s, _ := NewSender(data, time.Second, ts.URL, "", 1, "")
+
+	err := s.SendAllMetricsInOneBatch()
+	require.NoError(t, err)
+
+	var arr []map[string]interface{}
+	require.NoError(t, json.Unmarshal(<-received, &arr))
+	require.Equal(t, "temp", arr[0]["id"])
+	require.Equal(t, "gauge", arr[0]["type"])
+}
+
+func TestRun_SendsMetrics(t *testing.T) {
+	var mu sync.Mutex
+	count := 0
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		count++
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+
+	data := &sync.Map{}
+	g := metric.NewGauge("load")
+	g.Update(0.99)
+	data.Store("load", g)
+
+	s, _ := NewSender(data, 50*time.Millisecond, ts.URL, "", 1, "")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go s.Run(ctx, &wg)
+
+	wg.Wait()
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.GreaterOrEqual(t, count, 1, "expected at least one batch sent")
+}
+
+func TestSender_GracefulShutdown_WaitsForInFlightMetrics(t *testing.T) {
+	var mu sync.Mutex
+	var received []string
+
+	// fake server with artificial delay
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+
+		// simulate slow server processing
+		time.Sleep(300 * time.Millisecond)
+
+		gr, err := gzip.NewReader(r.Body)
+		if err != nil {
+			t.Errorf("failed to create gzip reader: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		defer gr.Close()
+
+		var m dto.Metrics
+		if err := json.NewDecoder(gr).Decode(&m); err != nil {
+			t.Errorf("failed to decode json: %v", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		mu.Lock()
+		received = append(received, m.ID)
+		mu.Unlock()
+
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	// prepare sync.Map with a single metric
+	data := &sync.Map{}
+	data.Store("counter1", metric.NewCounter("counter1"))
+
+	// create Sender with short report interval
+	s, err := NewSender(data, 100*time.Millisecond, srv.URL, "", 1, "")
+	if err != nil {
+		t.Fatalf("failed to create sender: %v", err)
 	}
 
-	agent.Data = &collector.Data
+	ctx, cancel := context.WithCancel(context.Background())
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go s.Run(ctx, &wg)
 
-	agent.Data.Store(metric1.GetName(), metric1)
-	agent.Data.Store(metric2.GetName(), metric2)
+	// wait until first batch is definitely in-flight
+	time.Sleep(150 * time.Millisecond)
 
-	agent.SendAllMetricsInOneBatch()
+	// initiate shutdown while request is still processing
+	cancel()
+	wg.Wait()
 
+	// check that the in-flight request was completed
+	mu.Lock()
+	defer mu.Unlock()
+	if len(received) != 1 {
+		t.Fatalf("expected 1 metric, got %d: %v", len(received), received)
+	}
 }

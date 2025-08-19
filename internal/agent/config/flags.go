@@ -2,18 +2,30 @@ package config
 
 import (
 	"flag"
+	"os"
 	"time"
+
+	"github.com/dmitrijs2005/metric-alerting-service/internal/common"
 )
 
 func parseFlags(config *Config) {
 
-	flag.StringVar(&config.EndpointAddr, "a", ":8080", "address and port to run server")
-	reportInterval := flag.Int("r", 10, "report interval (in seconds)")
-	pollInterval := flag.Int("p", 2, "poll interval (in seconds)")
-	flag.StringVar(&config.Key, "k", "", "signing key")
-	sendRateLimit := flag.Int("l", 3, "sending rate limit")
+	// filtering args to leave just values processed by parseFlags
+	args := common.FilterArgs(os.Args[1:], []string{"-a", "-r", "-p", "-k", "-l", "-crypto-key"})
 
-	flag.Parse()
+	fs := flag.NewFlagSet("main", flag.ContinueOnError)
+
+	fs.StringVar(&config.EndpointAddr, "a", config.EndpointAddr, "address and port to run server")
+	reportInterval := fs.Int("r", int(config.ReportInterval.Seconds()), "report interval (in seconds)")
+	pollInterval := fs.Int("p", int(config.PollInterval.Seconds()), "poll interval (in seconds)")
+	fs.StringVar(&config.Key, "k", config.Key, "signing key")
+	sendRateLimit := fs.Int("l", config.SendRateLimit, "sending rate limit")
+	fs.StringVar(&config.CryptoKey, "crypto-key", config.CryptoKey, "crypto key")
+
+	err := fs.Parse(args)
+	if err != nil {
+		panic(err)
+	}
 
 	config.ReportInterval = time.Duration(*reportInterval) * time.Second
 	config.PollInterval = time.Duration(*pollInterval) * time.Second

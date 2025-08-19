@@ -19,12 +19,16 @@ import (
 func ExampleHTTPServer_UpdateHandler() {
 	// Creating dependencies
 	address := "localhost:8080"
-	basePath := "/"
+	key := "key"
 	storage := memory.NewMemStorage()
 	log := logger.GetLogger()
+	cryptoKey := ""
 
 	// Initializing server
-	srv := NewHTTPServer(address, basePath, storage, log)
+	srv, err := NewHTTPServer(address, key, storage, log, cryptoKey, "")
+	if err != nil {
+		panic(err)
+	}
 
 	// Echo instance
 	e := echo.New()
@@ -49,14 +53,20 @@ func ExampleHTTPServer_UpdateHandler() {
 }
 
 func ExampleHTTPServer_ValueHandler() {
+	address := "localhost:8080"
+	key := "key"
 	storage := memory.NewMemStorage()
 	log := logger.GetLogger()
+	cryptoKey := ""
 
 	// Initializing server
-	srv := NewHTTPServer("localhost:8080", "/", storage, log)
+	srv, err := NewHTTPServer(address, key, storage, log, cryptoKey, "")
+	if err != nil {
+		panic(err)
+	}
 
 	// Saving metric
-	err := storage.Add(context.Background(), &metric.Counter{Name: "requests", Value: 42})
+	err = storage.Add(context.Background(), &metric.Counter{Name: "requests", Value: 42})
 	if err != nil {
 		panic(err)
 	}
@@ -82,11 +92,17 @@ func ExampleHTTPServer_ValueHandler() {
 }
 
 func ExampleHTTPServer_UpdateJSONHandler() {
+	address := "localhost:8080"
+	key := "key"
 	storage := memory.NewMemStorage()
 	log := logger.GetLogger()
+	cryptoKey := ""
 
 	// Initializing server
-	srv := NewHTTPServer("localhost:8080", "/", storage, log)
+	srv, err := NewHTTPServer(address, key, storage, log, cryptoKey, "")
+	if err != nil {
+		panic(err)
+	}
 
 	e := echo.New()
 	e.POST("/update/", srv.UpdateJSONHandler)
@@ -112,11 +128,17 @@ func ExampleHTTPServer_UpdateJSONHandler() {
 }
 
 func ExampleHTTPServer_UpdatesJSONHandler() {
+	address := "localhost:8080"
+	key := "key"
 	storage := memory.NewMemStorage()
 	log := logger.GetLogger()
+	cryptoKey := ""
 
 	// Initializing server
-	srv := NewHTTPServer("localhost:8080", "/", storage, log)
+	srv, err := NewHTTPServer(address, key, storage, log, cryptoKey, "")
+	if err != nil {
+		panic(err)
+	}
 
 	e := echo.New()
 	e.POST("/updates/", srv.UpdatesJSONHandler)
@@ -146,11 +168,17 @@ func ExampleHTTPServer_UpdatesJSONHandler() {
 
 func ExampleHTTPServer_ValueJSONHandler() {
 	ctx := context.Background()
+	address := "localhost:8080"
+	key := "key"
 	storage := memory.NewMemStorage()
 	log := logger.GetLogger()
+	cryptoKey := ""
 
 	// Initializing server
-	srv := NewHTTPServer("localhost:8080", "/", storage, log)
+	srv, err := NewHTTPServer(address, key, storage, log, cryptoKey, "")
+	if err != nil {
+		panic(err)
+	}
 
 	_ = storage.Add(ctx, &metric.Gauge{Name: "temperature", Value: 36.6})
 

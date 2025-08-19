@@ -36,4 +36,8 @@ func parseEnv(config *Config) {
 		config.SendRateLimit = val
 	}
 
+	if envVar, ok := os.LookupEnv("CRYPTO_KEY"); ok && envVar != "" {
+		config.CryptoKey = envVar
+	}
+
 }

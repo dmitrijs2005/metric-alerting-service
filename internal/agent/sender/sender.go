@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 	"github.com/dmitrijs2005/metric-alerting-service/internal/common"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/dto"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/secure"
 )
 
 // Sender handles sending metrics to the monitoring server.
@@ -30,6 +32,7 @@ type Sender struct {
 	ServerURL      string
 	ReportInterval time.Duration
 	SendRateLimit  int
+	PubKey         *rsa.PublicKey
 }
 
 // NewSender creates and returns a new Sender instance.
@@ -43,7 +46,18 @@ type Sender struct {
 //
 // Returns:
 //   - *Sender: a new Sender instance.
-func NewSender(data *sync.Map, reportInterval time.Duration, serverURL string, key string, sendRateLimit int) *Sender {
+func NewSender(data *sync.Map, reportInterval time.Duration, serverURL string, key string, sendRateLimit int, cryptoKey string) (*Sender, error) {
+
+	var pubKey *rsa.PublicKey
+	var err error
+
+	if cryptoKey != "" {
+		pubKey, err = secure.LoadRSAPublicKeyFromPEM(cryptoKey)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &Sender{
 		ReportInterval: reportInterval,
 		Data:           data,
@@ -65,7 +79,8 @@ func NewSender(data *sync.Map, reportInterval time.Duration, serverURL string, k
 				return new(bytes.Buffer)
 			},
 		},
-	}
+		PubKey: pubKey,
+	}, nil
 }
 
 func (s *Sender) worker(ind int, jobs <-chan metric.Metric) {
@@ -138,6 +153,14 @@ func (s *Sender) SendMetric(m metric.Metric) error {
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return common.ErrorMarshallingJSON
+	}
+
+	if s.PubKey != nil {
+		encryptedData, err := secure.EncryptRSAOAEPChunked(jsonData, s.PubKey)
+		if err != nil {
+			return common.NewWrappedError("Error sending request", err)
+		}
+		jsonData = []byte(encryptedData)
 	}
 
 	buf := s.BufferPool.Get().(*bytes.Buffer)
@@ -238,8 +261,6 @@ func (s *Sender) SendAllMetricsInOneBatch() error {
 
 	url = fmt.Sprintf("%s/updates/", url)
 
-	common.WriteToConsole("sending...")
-
 	// Create a new HTTP request
 	req, err := http.NewRequest("POST", url, buf)
 	if err != nil {
@@ -253,7 +274,7 @@ func (s *Sender) SendAllMetricsInOneBatch() error {
 	// signing if key is specified
 	if s.Key != "" {
 		var sign []byte
-		sign, err = common.CreateAes256Signature(jsonData, s.Key)
+		sign, err = secure.CreateAes256Signature(jsonData, s.Key)
 		if err != nil {
 			return common.NewWrappedError("Error signing request", err)
 		}

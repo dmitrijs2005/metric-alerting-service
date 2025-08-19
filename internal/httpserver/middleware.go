@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dmitrijs2005/metric-alerting-service/internal/common"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/secure"
 	"github.com/labstack/echo/v4"
 )
 
@@ -28,7 +28,7 @@ func (s *HTTPServer) SignCheckMiddleware(next echo.HandlerFunc) echo.HandlerFunc
 				return echo.NewHTTPError(http.StatusInternalServerError, "Cannot read signature")
 			}
 
-			actualSign, err := common.CreateAes256Signature(body, s.Key)
+			actualSign, err := secure.CreateAes256Signature(body, s.Key)
 			if err != nil {
 				return echo.NewHTTPError(http.StatusInternalServerError, "Cannot create signature")
 			}
@@ -59,7 +59,7 @@ func (s *HTTPServer) SignCheckMiddleware(next echo.HandlerFunc) echo.HandlerFunc
 
 		// signing the response
 		body := resBody.Bytes()
-		responseSign, err := common.CreateAes256Signature(body, s.Key)
+		responseSign, err := secure.CreateAes256Signature(body, s.Key)
 		if err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "Cannot create signature")
 		}
@@ -152,5 +152,31 @@ func (s *HTTPServer) CompressingMiddleware(next echo.HandlerFunc) echo.HandlerFu
 		}
 
 		return nil
+	}
+}
+
+func (s *HTTPServer) DecryptMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c echo.Context) error {
+
+		req := c.Request()
+
+		body, err := io.ReadAll(req.Body)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Cannot read request body")
+		}
+
+		qw, err := secure.DecryptRSAOAEPChunked(string(body), s.PrivateKey)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Cannot decrypt body")
+		}
+
+		c.Request().Body = io.NopCloser(bytes.NewBuffer(qw))
+
+		if err := next(c); err != nil {
+			c.Error(err)
+		}
+
+		return nil
+
 	}
 }

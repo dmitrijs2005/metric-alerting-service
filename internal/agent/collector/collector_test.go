@@ -1,11 +1,15 @@
 package collector
 
 import (
+	"context"
 	"runtime"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMetricAgent_updateGauge(t *testing.T) {
@@ -115,4 +119,73 @@ func BenchmarkIndexedMetricName(b *testing.B) {
 			_ = GetIndexedMetricNameItoa("CPUutilization", i)
 		}
 	})
+}
+
+func TestNewCollector_SetsPollInterval(t *testing.T) {
+	c := NewCollector(123 * time.Millisecond)
+	assert.Equal(t, 123*time.Millisecond, c.PollInterval)
+}
+
+func TestGetIndexedMetricNameHelpers(t *testing.T) {
+	assert.Equal(t, "CPUutilization1", GetIndexedMetricNameSprintf("CPUutilization", 1))
+	assert.Equal(t, "CPUutilization10", GetIndexedMetricNameItoa("CPUutilization", 10))
+}
+
+func TestUpdateGaugeAndCounter_StoreTypes(t *testing.T) {
+	c := &Collector{}
+	// Gauge path
+	c.updateGauge("Alloc", 42.5)
+	v, ok := c.Data.Load("Alloc")
+	require.True(t, ok, "Alloc should be stored")
+	_, isGauge := v.(*metric.Gauge)
+	assert.True(t, isGauge, "Alloc should be a *metric.Gauge")
+
+	// Counter path
+	c.updateCounter("PollCount", 1)
+	v, ok = c.Data.Load("PollCount")
+	require.True(t, ok, "PollCount should be stored")
+	_, isCounter := v.(*metric.Counter)
+	assert.True(t, isCounter, "PollCount should be a *metric.Counter")
+
+}
+
+func TestRunStatUpdater_PopulatesMetricsAndCancels(t *testing.T) {
+	c := NewCollector(10 * time.Millisecond)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go c.RunStatUpdater(ctx, &wg)
+
+	// Give it a little time to tick and populate
+	time.Sleep(30 * time.Millisecond)
+	cancel()
+	wg.Wait()
+
+	// A few representative runtime metrics should exist
+	keys := []string{
+		"Alloc",
+		"HeapAlloc",
+		"NumGC",
+		"Sys",
+		"RandomValue",
+		"PollCount",
+	}
+	for _, k := range keys {
+		_, ok := c.Data.Load(k)
+		assert.Truef(t, ok, "expected metric %q to be present", k)
+	}
+}
+
+func TestUpdatePSUtilsMemoryMetrics_PopulatesTotals(t *testing.T) {
+	c := NewCollector(0)
+	// Call directly; should be quick and not block
+	c.updatePSUtilsMemoryMetrics(context.Background())
+
+	// Presence checks
+	_, ok := c.Data.Load("TotalMemory")
+	assert.True(t, ok, "TotalMemory should be present")
+
+	_, ok = c.Data.Load("FreeMemory")
+	assert.True(t, ok, "FreeMemory should be present")
 }

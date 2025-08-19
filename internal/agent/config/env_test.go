@@ -21,11 +21,12 @@ func TestParseEnv(t *testing.T) {
 		key            string
 		rateLimit      string
 		expectPanic    bool
+		cryptoKey      string
 	}{
 		{name: "Test1 OK", addr: "127.0.0.1:9090", reportInterval: "10", pollInterval: "5",
-			key: "secretkey", rateLimit: "3", expectPanic: false,
+			key: "secretkey", rateLimit: "3", expectPanic: false, cryptoKey: "some_file.pem",
 			expected: &Config{EndpointAddr: "127.0.0.1:9090", ReportInterval: 10 * time.Second,
-				PollInterval: 5 * time.Second, Key: "secretkey", SendRateLimit: 3}},
+				PollInterval: 5 * time.Second, Key: "secretkey", SendRateLimit: 3, CryptoKey: "some_file.pem"}},
 		{name: "Test2 incorrect report interval", addr: "127.0.0.1:9090", reportInterval: "a", pollInterval: "5", key: "secretkey", rateLimit: "3", expectPanic: true, expected: &Config{}},
 		{name: "Test2 incorrect report interval", addr: "127.0.0.1:9090", reportInterval: "20", pollInterval: "a", key: "secretkey", rateLimit: "3", expectPanic: true, expected: &Config{}},
 	}
@@ -38,6 +39,7 @@ func TestParseEnv(t *testing.T) {
 			oldPI := os.Getenv("POLL_INTERVAL")
 			oldKey := os.Getenv("KEY")
 			oldRateLimit := os.Getenv("RATE_LIMIT")
+			oldCryptoKey := os.Getenv("CRYPTO_KEY")
 
 			if err := os.Setenv("ADDRESS", tt.addr); err != nil {
 				panic(err)
@@ -52,6 +54,9 @@ func TestParseEnv(t *testing.T) {
 				panic(err)
 			}
 			if err := os.Setenv("RATE_LIMIT", tt.rateLimit); err != nil {
+				panic(err)
+			}
+			if err := os.Setenv("CRYPTO_KEY", tt.cryptoKey); err != nil {
 				panic(err)
 			}
 
@@ -78,6 +83,9 @@ func TestParseEnv(t *testing.T) {
 					panic(err)
 				}
 				if err = os.Setenv("RATE_LIMIT", oldRateLimit); err != nil {
+					panic(err)
+				}
+				if err = os.Setenv("CRYPTO_KEY", oldCryptoKey); err != nil {
 					panic(err)
 				}
 

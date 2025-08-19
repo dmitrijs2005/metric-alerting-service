@@ -17,9 +17,9 @@ func TestParseFlags(t *testing.T) {
 		name     string
 		args     []string
 	}{
-		{name: "Test1 iP:port", args: []string{"cmd", "-a=127.0.0.1:9090", "-i", "30", "-f", "/tmp/tmp.sav", "-d", "db", "-k", "secretkey1", "-r", "true"},
+		{name: "Test1 iP:port", args: []string{"cmd", "-a=127.0.0.1:9090", "-i", "30", "-f", "/tmp/tmp.sav", "-d", "db", "-k", "secretkey1", "-crypto-key", "some_file.pem", "-r", "true"},
 			expected: &Config{EndpointAddr: "127.0.0.1:9090", StoreInterval: 30 * time.Second,
-				FileStoragePath: "/tmp/tmp.sav", Restore: true, DatabaseDSN: "db", Key: "secretkey1"}}, // Edge case: empty value
+				FileStoragePath: "/tmp/tmp.sav", Restore: true, DatabaseDSN: "db", Key: "secretkey1", CryptoKey: "some_file.pem"}}, // Edge case: empty value
 		{name: "Test2 :port", args: []string{"cmd"},
 			expected: &Config{EndpointAddr: ":8080", StoreInterval: 30 * time.Second,
 				FileStoragePath: "/tmp/tmp.sav", Restore: true, DatabaseDSN: "", Key: ""}}, // Default value
@@ -35,6 +35,7 @@ func TestParseFlags(t *testing.T) {
 			os.Args = tt.args
 
 			config := &Config{}
+			config.LoadDefaults()
 			parseFlags(config)
 
 			testutils.AssertEqualStructs(t, config, tt.expected)

@@ -3,12 +3,14 @@ package httpserver
 import (
 	"compress/gzip"
 	"context"
+	"crypto/rsa"
 	"fmt"
 	"html/template"
 	"net/http"
 	"sync"
 
 	"github.com/dmitrijs2005/metric-alerting-service/internal/logger"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/secure"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage/file"
 	"github.com/labstack/echo/v4"
@@ -23,9 +25,22 @@ type HTTPServer struct {
 	Key            string
 	StoreInterval  int
 	Restore        bool
+	PrivateKey     *rsa.PrivateKey
+	TemplatePath   string
+	wg             sync.WaitGroup
 }
 
-func NewHTTPServer(address string, key string, storage storage.Storage, logger logger.Logger) *HTTPServer {
+func NewHTTPServer(address string, key string, storage storage.Storage, logger logger.Logger, cryptoKey string, templatePath string) (*HTTPServer, error) {
+
+	var privKey *rsa.PrivateKey
+	var err error
+
+	if cryptoKey != "" {
+		privKey, err = secure.LoadRSAPrivateKeyFromPEM(cryptoKey)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	pool := &sync.Pool{
 		New: func() interface{} {
@@ -37,14 +52,14 @@ func NewHTTPServer(address string, key string, storage storage.Storage, logger l
 		},
 	}
 
-	return &HTTPServer{Address: address, Key: key, Storage: storage, logger: logger, GzipWriterPool: pool}
+	return &HTTPServer{Address: address, Key: key, Storage: storage, logger: logger, GzipWriterPool: pool, PrivateKey: privKey, TemplatePath: templatePath}, nil
 }
 
-func (s *HTTPServer) ConfigureRoutes(templatePath string) *echo.Echo {
+func (s *HTTPServer) ConfigureRoutes() *echo.Echo {
 
 	// Load templates
 	t := &Template{
-		templates: template.Must(template.ParseGlob(fmt.Sprintf("%s/*.html", templatePath))),
+		templates: template.Must(template.ParseGlob(fmt.Sprintf("%s/*.html", s.TemplatePath))),
 	}
 
 	// Echo instance
@@ -57,8 +72,8 @@ func (s *HTTPServer) ConfigureRoutes(templatePath string) *echo.Echo {
 	}
 
 	e.POST("/value/", s.ValueJSONHandler)
-	e.POST("/update/", s.UpdateJSONHandler)
-	e.POST("/updates/", s.UpdatesJSONHandler)
+	e.POST("/update/", s.UpdateJSONHandler, s.middlewareIf(s.PrivateKey != nil, s.DecryptMiddleware)...)
+	e.POST("/updates/", s.UpdatesJSONHandler, s.middlewareIf(s.PrivateKey != nil, s.DecryptMiddleware)...)
 	e.POST("/update/:type/:name/:value", s.UpdateHandler)
 	e.GET("/value/:type/:name", s.ValueHandler)
 	e.GET("/ping", s.PingHandler)
@@ -68,9 +83,14 @@ func (s *HTTPServer) ConfigureRoutes(templatePath string) *echo.Echo {
 	return e
 }
 
-func (s *HTTPServer) Run(ctx context.Context) error {
+func (s *HTTPServer) middlewareIf(condtion bool, mw ...echo.MiddlewareFunc) []echo.MiddlewareFunc {
+	if condtion {
+		return mw
+	}
+	return nil
+}
 
-	e := s.ConfigureRoutes("web/template")
+func (s *HTTPServer) Run(ctx context.Context, e *echo.Echo) error {
 
 	server := &http.Server{
 		Addr:    s.Address,
