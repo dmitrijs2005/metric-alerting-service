@@ -261,8 +261,6 @@ func (s *Sender) SendAllMetricsInOneBatch() error {
 
 	url = fmt.Sprintf("%s/updates/", url)
 
-	common.WriteToConsole("sending...")
-
 	// Create a new HTTP request
 	req, err := http.NewRequest("POST", url, buf)
 	if err != nil {

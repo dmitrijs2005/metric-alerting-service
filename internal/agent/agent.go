@@ -39,7 +39,7 @@ func NewMetricAgent(cfg *config.Config) (*MetricAgent, error) {
 func (a *MetricAgent) initSignalHandler(cancelFunc context.CancelFunc) {
 	// Channel to catch OS signals.
 	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
 	go func() {
 		<-sigs
