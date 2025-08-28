@@ -11,7 +11,7 @@ import (
 func parseFlags(config *Config) {
 
 	// filtering args to leave just values processed by parseFlags
-	args := common.FilterArgs(os.Args[1:], []string{"-d", "-a", "-i", "-f", "-k", "-r", "-crypto-key"})
+	args := common.FilterArgs(os.Args[1:], []string{"-d", "-a", "-i", "-f", "-k", "-r", "-crypto-key", "-t"})
 
 	fs := flag.NewFlagSet("main", flag.ContinueOnError)
 
@@ -28,6 +28,8 @@ func parseFlags(config *Config) {
 	fs.BoolVar(&config.Restore, "r", config.Restore, "restore saved metrics")
 
 	fs.StringVar(&config.CryptoKey, "crypto-key", config.CryptoKey, "crypto key")
+
+	fs.StringVar(&config.TrustedSubnet, "t", config.TrustedSubnet, "trusted subnet")
 
 	err := fs.Parse(args)
 	if err != nil {

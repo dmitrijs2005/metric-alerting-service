@@ -21,11 +21,12 @@ func TestParseEnv(t *testing.T) {
 		databaseDSN     string
 		key             string
 		cryptoKey       string
+		trustedSubnet   string
 	}{
 		{name: "Test1 ip:port", addr: "127.0.0.1:9090", storeInterval: "30", fileStoragePath: "/tmp/save.sav",
-			restore: "true", databaseDSN: "db1", key: "secretkey1", cryptoKey: "some_file.pem",
+			restore: "true", databaseDSN: "db1", key: "secretkey1", cryptoKey: "some_file.pem", trustedSubnet: "192.168.1.0/24",
 			expected: &Config{EndpointAddr: "127.0.0.1:9090", StoreInterval: 30 * time.Second, FileStoragePath: "/tmp/save.sav",
-				Restore: true, DatabaseDSN: "db1", Key: "secretkey1", CryptoKey: "some_file.pem"}},
+				Restore: true, DatabaseDSN: "db1", Key: "secretkey1", CryptoKey: "some_file.pem", TrustedSubnet: "192.168.1.0/24"}},
 		{name: "Test1 :port", addr: ":8080", storeInterval: "25", fileStoragePath: "/tmp/save2.sav",
 			restore: "false", databaseDSN: "db2", key: "secretkey2",
 			expected: &Config{EndpointAddr: ":8080", StoreInterval: 25 * time.Second, FileStoragePath: "/tmp/save2.sav",
@@ -47,6 +48,7 @@ func TestParseEnv(t *testing.T) {
 			oldDatabaseDSN := os.Getenv("DATABASE_DSN")
 			oldKey := os.Getenv("KEY")
 			oldCryptoKey := os.Getenv("CRYPTO_KEY")
+			oldTrustedSubnet := os.Getenv("TRUSTED_SUBNET")
 
 			if err := os.Setenv("ADDRESS", tt.addr); err != nil {
 				panic(err)
@@ -76,6 +78,10 @@ func TestParseEnv(t *testing.T) {
 				panic(err)
 			}
 
+			if err := os.Setenv("TRUSTED_SUBNET", tt.trustedSubnet); err != nil {
+				panic(err)
+			}
+
 			config := &Config{}
 			parseEnv(config)
 
@@ -98,6 +104,9 @@ func TestParseEnv(t *testing.T) {
 				panic(err)
 			}
 			if err := os.Setenv("CRYPTO_KEY", oldCryptoKey); err != nil {
+				panic(err)
+			}
+			if err := os.Setenv("TRUSTED_SUBNET", oldTrustedSubnet); err != nil {
 				panic(err)
 			}
 

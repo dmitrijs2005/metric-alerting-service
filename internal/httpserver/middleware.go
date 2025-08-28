@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -171,6 +172,30 @@ func (s *HTTPServer) DecryptMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 		}
 
 		c.Request().Body = io.NopCloser(bytes.NewBuffer(qw))
+
+		if err := next(c); err != nil {
+			c.Error(err)
+		}
+
+		return nil
+
+	}
+}
+
+func (s *HTTPServer) CheckTrustedSubnetMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c echo.Context) error {
+
+		req := c.Request()
+
+		realIP := req.Header.Get("X-Real-IP")
+
+		if realIP == "" {
+			return echo.NewHTTPError(http.StatusForbidden, "Cannot find real IP header")
+		}
+
+		if !s.TrustedSubnet.Contains(net.ParseIP(realIP)) {
+			return echo.NewHTTPError(http.StatusForbidden, "IP address is not in trusted subnet")
+		}
 
 		if err := next(c); err != nil {
 			c.Error(err)

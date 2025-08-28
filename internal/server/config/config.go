@@ -12,6 +12,7 @@ func (c *Config) LoadDefaults() {
 	c.Key = ""
 	c.Restore = true
 	c.CryptoKey = ""
+	c.TrustedSubnet = ""
 }
 
 type Config struct {
@@ -22,6 +23,7 @@ type Config struct {
 	StoreInterval   time.Duration
 	Restore         bool
 	CryptoKey       string
+	TrustedSubnet   string
 }
 
 func LoadConfig() *Config {
