@@ -7,6 +7,7 @@ import "time"
 func (c *Config) LoadDefaults() {
 	c.DatabaseDSN = ""
 	c.EndpointAddr = ":8080"
+	c.GRPCEndpointAddr = ":50051"
 	c.StoreInterval = time.Duration(30) * time.Second
 	c.FileStoragePath = "/tmp/tmp.sav"
 	c.Key = ""
@@ -16,14 +17,15 @@ func (c *Config) LoadDefaults() {
 }
 
 type Config struct {
-	EndpointAddr    string
-	FileStoragePath string
-	DatabaseDSN     string
-	Key             string
-	StoreInterval   time.Duration
-	Restore         bool
-	CryptoKey       string
-	TrustedSubnet   string
+	EndpointAddr     string
+	GRPCEndpointAddr string
+	FileStoragePath  string
+	DatabaseDSN      string
+	Key              string
+	StoreInterval    time.Duration
+	Restore          bool
+	CryptoKey        string
+	TrustedSubnet    string
 }
 
 func LoadConfig() *Config {

@@ -1,4 +1,4 @@
-package httpserver
+package http
 
 import (
 	"context"
@@ -10,13 +10,14 @@ import (
 	"github.com/dmitrijs2005/metric-alerting-service/internal/common"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/dto"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/server/usecase"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
 	"github.com/labstack/echo/v4"
 )
 
-func (s *HTTPServer) retrieveMetric(ctx context.Context, metricType string, metricName string) (metric.Metric, error) {
-	return s.Storage.Retrieve(ctx, metric.MetricType(metricType), metricName)
-}
+// func (s *HTTPServer) retrieveMetric(ctx context.Context, metricType string, metricName string) (metric.Metric, error) {
+// 	return s.Storage.Retrieve(ctx, metric.MetricType(metricType), metricName)
+// }
 
 func (s *HTTPServer) updateMetric(ctx context.Context, m metric.Metric, metricValue any) error {
 	x := s.Storage.Update(ctx, m, metricValue)
@@ -58,7 +59,7 @@ func (s *HTTPServer) newMetricWithValue(metricType string, metricName string, me
 
 func (s *HTTPServer) updateMetricByValue(ctx context.Context, metricType string, metricName string, metricValue interface{}) (metric.Metric, error) {
 
-	m, err := s.retrieveMetric(ctx, metricType, metricName)
+	m, err := usecase.RetrieveMetric(ctx, s.Storage, metricType, metricName)
 
 	if err != nil {
 		if !errors.Is(err, common.ErrorMetricDoesNotExist) {

@@ -19,6 +19,9 @@ import (
 	"github.com/dmitrijs2005/metric-alerting-service/internal/dto"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/secure"
+	"google.golang.org/grpc"
+
+	pb "github.com/dmitrijs2005/metric-alerting-service/internal/proto"
 )
 
 // Sender handles sending metrics to the monitoring server.
@@ -33,6 +36,8 @@ type Sender struct {
 	ReportInterval time.Duration
 	SendRateLimit  int
 	PubKey         *rsa.PublicKey
+	UseGRPC        bool
+	gRPCConn       *grpc.ClientConn
 }
 
 // NewSender creates and returns a new Sender instance.
@@ -46,7 +51,7 @@ type Sender struct {
 //
 // Returns:
 //   - *Sender: a new Sender instance.
-func NewSender(data *sync.Map, reportInterval time.Duration, serverURL string, key string, sendRateLimit int, cryptoKey string) (*Sender, error) {
+func NewSender(data *sync.Map, reportInterval time.Duration, serverURL string, key string, sendRateLimit int, cryptoKey string, useGRPC bool) (*Sender, error) {
 
 	var pubKey *rsa.PublicKey
 	var err error
@@ -79,7 +84,8 @@ func NewSender(data *sync.Map, reportInterval time.Duration, serverURL string, k
 				return new(bytes.Buffer)
 			},
 		},
-		PubKey: pubKey,
+		PubKey:  pubKey,
+		UseGRPC: useGRPC,
 	}, nil
 }
 
@@ -91,7 +97,14 @@ func (s *Sender) worker(ind int, jobs <-chan metric.Metric) {
 	defer common.WriteToConsole(fmt.Sprintf("%s exited", label))
 
 	for j := range jobs {
-		err := s.SendMetric(j)
+
+		var err error
+		if s.UseGRPC {
+			err = s.SendMetricGRPC(j)
+		} else {
+			err = s.SendMetric(j)
+		}
+
 		if err != nil {
 			common.WriteToConsole(fmt.Sprintf("Error sending metric %v", err))
 		} else {
@@ -128,6 +141,29 @@ func (s *Sender) MetricToDto(m metric.Metric) (*dto.Metrics, error) {
 		}
 	}
 	return data, nil
+}
+
+// SendMetricGRPC sends a single metric to the configured gRPC server.
+//
+// It creates a new MetricService client from the existing gRPC connection,
+// builds an UpdateMetricValueRequest from the provided metric, and performs
+// a unary RPC call to update the metric value on the remote server.
+//
+// The metric's type, name, and value are serialized into the request. The
+// call is executed with a background context (no timeout or cancellation).
+//
+// If the gRPC call fails, the error is returned; otherwise, SendMetricGRPC
+// returns nil.
+func (s *Sender) SendMetricGRPC(m metric.Metric) error {
+
+	client := pb.NewMetricServiceClient(s.gRPCConn)
+	req := &pb.UpdateMetricValueRequest{MetricType: string(m.GetType()), MetricName: m.GetName(), MetricValue: fmt.Sprintf("%v", m.GetValue())}
+	_, err := client.UpdateMetricValue(context.Background(), req)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // SendMetric sends a single metric to the /update/ endpoint with gzip compression.
@@ -317,7 +353,19 @@ func (s *Sender) SendAllMetrics() error {
 // Parameters:
 //   - ctx: context for graceful shutdown.
 //   - wg: WaitGroup to signal when sender has stopped.
-func (s *Sender) Run(ctx context.Context, wg *sync.WaitGroup) {
+func (s *Sender) Run(ctx context.Context, wg *sync.WaitGroup) error {
+
+	if s.UseGRPC {
+
+		fmt.Println("s.ServerURL", s.ServerURL)
+
+		conn, err := grpc.NewClient(s.ServerURL, grpc.WithInsecure())
+		if err != nil {
+			return err
+		}
+		defer conn.Close()
+		s.gRPCConn = conn
+	}
 
 	defer wg.Done()
 
@@ -351,5 +399,7 @@ loop:
 
 	close(s.Jobs)
 	workerWg.Wait()
+
+	return nil
 
 }

@@ -13,6 +13,7 @@ func (c *Config) LoadDefaults() {
 	c.SendRateLimit = 3
 	c.Key = ""
 	c.CryptoKey = ""
+	c.UseGRPC = false
 }
 
 type Config struct {
@@ -22,6 +23,7 @@ type Config struct {
 	PollInterval   time.Duration
 	SendRateLimit  int
 	CryptoKey      string
+	UseGRPC        bool
 }
 
 func LoadConfig() *Config {

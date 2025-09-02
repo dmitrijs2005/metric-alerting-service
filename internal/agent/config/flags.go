@@ -11,7 +11,7 @@ import (
 func parseFlags(config *Config) {
 
 	// filtering args to leave just values processed by parseFlags
-	args := common.FilterArgs(os.Args[1:], []string{"-a", "-r", "-p", "-k", "-l", "-crypto-key"})
+	args := common.FilterArgs(os.Args[1:], []string{"-a", "-r", "-p", "-k", "-l", "-crypto-key", "-g"})
 
 	fs := flag.NewFlagSet("main", flag.ContinueOnError)
 
@@ -21,6 +21,8 @@ func parseFlags(config *Config) {
 	fs.StringVar(&config.Key, "k", config.Key, "signing key")
 	sendRateLimit := fs.Int("l", config.SendRateLimit, "sending rate limit")
 	fs.StringVar(&config.CryptoKey, "crypto-key", config.CryptoKey, "crypto key")
+
+	fs.BoolVar(&config.UseGRPC, "g", config.UseGRPC, "use grpc")
 
 	err := fs.Parse(args)
 	if err != nil {

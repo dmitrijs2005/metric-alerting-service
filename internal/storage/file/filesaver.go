@@ -58,7 +58,7 @@ func (fs *FileSaver) RestoreDump(ctx context.Context) error {
 	// Open the file for reading.
 	file, err := os.Open(fs.FileStoragePath)
 	if err != nil {
-		return fmt.Errorf("error opening file: %s", err.Error())
+		return fmt.Errorf("error opening file: %w", err)
 	}
 	defer file.Close()
 

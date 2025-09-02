@@ -1,4 +1,4 @@
-package httpserver
+package http
 
 import (
 	"bytes"
@@ -60,7 +60,7 @@ func TestHTTPServer_RequestResponseInfoMiddleware(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			s, err := NewHTTPServer(address, key, stor, log, cryptoKey, "../../web/template", "")
+			s, err := NewHTTPServer(address, key, stor, log, cryptoKey, "")
 			require.NoError(t, err)
 
 			e := s.ConfigureRoutes()

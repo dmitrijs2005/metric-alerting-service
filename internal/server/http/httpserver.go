@@ -1,15 +1,15 @@
-package httpserver
+package http
 
 import (
 	"compress/gzip"
 	"context"
 	"crypto/rsa"
-	"fmt"
 	"html/template"
 	"net"
 	"net/http"
 	"sync"
 
+	"github.com/dmitrijs2005/metric-alerting-service/internal/assets"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/logger"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/secure"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
@@ -32,7 +32,7 @@ type HTTPServer struct {
 	wg             sync.WaitGroup
 }
 
-func NewHTTPServer(address string, key string, storage storage.Storage, logger logger.Logger, cryptoKey string, templatePath string, trustedSubnet string) (*HTTPServer, error) {
+func NewHTTPServer(address string, key string, storage storage.Storage, logger logger.Logger, cryptoKey string, trustedSubnet string) (*HTTPServer, error) {
 
 	var privKey *rsa.PrivateKey
 	var err error
@@ -62,7 +62,7 @@ func NewHTTPServer(address string, key string, storage storage.Storage, logger l
 		}
 	}
 
-	return &HTTPServer{Address: address, Key: key, Storage: storage, logger: logger, GzipWriterPool: pool, PrivateKey: privKey, TemplatePath: templatePath, TrustedSubnet: cidr}, nil
+	return &HTTPServer{Address: address, Key: key, Storage: storage, logger: logger, GzipWriterPool: pool, PrivateKey: privKey, TrustedSubnet: cidr}, nil
 }
 
 func (s *HTTPServer) getUpdateMiddlewares() []echo.MiddlewareFunc {
@@ -80,7 +80,7 @@ func (s *HTTPServer) ConfigureRoutes() *echo.Echo {
 
 	// Load templates
 	t := &Template{
-		templates: template.Must(template.ParseGlob(fmt.Sprintf("%s/*.html", s.TemplatePath))),
+		templates: template.Must(template.ParseFS(assets.WebTemplates, "template/*.html")),
 	}
 
 	// Echo instance
