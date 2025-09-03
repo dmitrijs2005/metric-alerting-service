@@ -189,3 +189,27 @@ func TestUpdatePSUtilsMemoryMetrics_PopulatesTotals(t *testing.T) {
 	_, ok = c.Data.Load("FreeMemory")
 	assert.True(t, ok, "FreeMemory should be present")
 }
+
+func TestUpdatePSUtilsCPUMetrics(t *testing.T) {
+	// подменяем функцию cpuPercentFunc
+	oldFunc := cpuPercentFunc // экспортируемая переменная
+	defer func() { cpuPercentFunc = oldFunc }()
+
+	cpuPercentFunc = func(ctx context.Context, interval time.Duration, percpu bool) ([]float64, error) {
+		return []float64{10.5, 20.0}, nil
+	}
+
+	c := NewCollector(0)
+	ctx := context.Background()
+
+	c.updatePSUtilsCPUMetrics(ctx)
+
+	// проверяем, что метрики записались
+	v1, ok := c.Data.Load("CPUutilization1")
+	require.True(t, ok)
+	require.InDelta(t, 10.5, v1.(*metric.Gauge).GetValue(), 0.0001)
+
+	v2, ok := c.Data.Load("CPUutilization2")
+	require.True(t, ok)
+	require.InDelta(t, 20.0, v2.(*metric.Gauge).GetValue(), 0.0001)
+}

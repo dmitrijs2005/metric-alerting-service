@@ -6,14 +6,16 @@ import (
 	"time"
 )
 
-func (c *Config) LoadDefaults() {
-	c.EndpointAddr = ":8080"
-	c.ReportInterval = time.Duration(10) * time.Second
-	c.PollInterval = time.Duration(2) * time.Second
-	c.SendRateLimit = 3
-	c.Key = ""
-	c.CryptoKey = ""
-	c.UseGRPC = false
+func NewConfig() *Config {
+	return &Config{
+		EndpointAddr:   ":8080",
+		ReportInterval: 10 * time.Second,
+		PollInterval:   2 * time.Second,
+		SendRateLimit:  3,
+		Key:            "",
+		CryptoKey:      "",
+		UseGRPC:        false,
+	}
 }
 
 type Config struct {
@@ -27,8 +29,7 @@ type Config struct {
 }
 
 func LoadConfig() *Config {
-	config := &Config{}
-	config.LoadDefaults()
+	config := NewConfig()
 
 	parseJson(config)
 	parseFlags(config)

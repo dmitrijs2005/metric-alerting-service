@@ -189,22 +189,11 @@ func (s *Sender) SendMetricGRPC(m metric.Metric) error {
 		return s.SendMetricGRPCEncrypted(m, client, req)
 	}
 
+	fmt.Println(req)
 	_, err := client.UpdateMetricValue(context.Background(), req)
 	if err != nil {
 		return err
 	}
-
-	//UpdateMetricValue
-
-	// signing if key is specified
-	// if s.Key != "" {
-	// 	var sign []byte
-	// 	sign, err = secure.CreateAes256Signature(jsonData, s.Key)
-	// 	if err != nil {
-	// 		return common.NewWrappedError("Error signing request", err)
-	// 	}
-	// 	req.Header.Set("HashSHA256", base64.RawStdEncoding.EncodeToString(sign))
-	// }
 
 	return nil
 }

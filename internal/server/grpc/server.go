@@ -58,7 +58,7 @@ func (s *MetricsServer) Run(ctx context.Context) error {
 	}
 
 	// creates gRPC-server
-	srv := grpc.NewServer()
+	srv := grpc.NewServer(opts...)
 
 	// registers service
 	pb.RegisterMetricServiceServer(srv, s)

@@ -8,6 +8,8 @@ package proto
 
 import (
 	context "context"
+	"fmt"
+
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -45,7 +47,11 @@ func (c *metricServiceClient) UpdateMetricValue(ctx context.Context, in *UpdateM
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(UpdateMetricValueResponse)
 	err := c.cc.Invoke(ctx, MetricService_UpdateMetricValue_FullMethodName, in, out, cOpts...)
+
+	fmt.Println("aaaa!!!!")
+
 	if err != nil {
+		fmt.Println("bbbb!!!!")
 		return nil, err
 	}
 	return out, nil
