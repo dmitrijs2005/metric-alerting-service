@@ -19,7 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	MetricService_UpdateMetricValue_FullMethodName = "/metric.alerting.service.MetricService/UpdateMetricValue"
+	MetricService_UpdateMetricValue_FullMethodName          = "/metric.alerting.service.MetricService/UpdateMetricValue"
+	MetricService_UpdateMetricValueEncrypted_FullMethodName = "/metric.alerting.service.MetricService/UpdateMetricValueEncrypted"
 )
 
 // MetricServiceClient is the client API for MetricService service.
@@ -29,6 +30,7 @@ const (
 // Stat service definition.
 type MetricServiceClient interface {
 	UpdateMetricValue(ctx context.Context, in *UpdateMetricValueRequest, opts ...grpc.CallOption) (*UpdateMetricValueResponse, error)
+	UpdateMetricValueEncrypted(ctx context.Context, in *EncryptedMessage, opts ...grpc.CallOption) (*UpdateMetricValueResponse, error)
 }
 
 type metricServiceClient struct {
@@ -49,6 +51,16 @@ func (c *metricServiceClient) UpdateMetricValue(ctx context.Context, in *UpdateM
 	return out, nil
 }
 
+func (c *metricServiceClient) UpdateMetricValueEncrypted(ctx context.Context, in *EncryptedMessage, opts ...grpc.CallOption) (*UpdateMetricValueResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateMetricValueResponse)
+	err := c.cc.Invoke(ctx, MetricService_UpdateMetricValueEncrypted_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MetricServiceServer is the server API for MetricService service.
 // All implementations must embed UnimplementedMetricServiceServer
 // for forward compatibility.
@@ -56,6 +68,7 @@ func (c *metricServiceClient) UpdateMetricValue(ctx context.Context, in *UpdateM
 // Stat service definition.
 type MetricServiceServer interface {
 	UpdateMetricValue(context.Context, *UpdateMetricValueRequest) (*UpdateMetricValueResponse, error)
+	UpdateMetricValueEncrypted(context.Context, *EncryptedMessage) (*UpdateMetricValueResponse, error)
 	mustEmbedUnimplementedMetricServiceServer()
 }
 
@@ -68,6 +81,9 @@ type UnimplementedMetricServiceServer struct{}
 
 func (UnimplementedMetricServiceServer) UpdateMetricValue(context.Context, *UpdateMetricValueRequest) (*UpdateMetricValueResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateMetricValue not implemented")
+}
+func (UnimplementedMetricServiceServer) UpdateMetricValueEncrypted(context.Context, *EncryptedMessage) (*UpdateMetricValueResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateMetricValueEncrypted not implemented")
 }
 func (UnimplementedMetricServiceServer) mustEmbedUnimplementedMetricServiceServer() {}
 func (UnimplementedMetricServiceServer) testEmbeddedByValue()                       {}
@@ -108,6 +124,24 @@ func _MetricService_UpdateMetricValue_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MetricService_UpdateMetricValueEncrypted_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EncryptedMessage)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MetricServiceServer).UpdateMetricValueEncrypted(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MetricService_UpdateMetricValueEncrypted_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MetricServiceServer).UpdateMetricValueEncrypted(ctx, req.(*EncryptedMessage))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // MetricService_ServiceDesc is the grpc.ServiceDesc for MetricService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -118,6 +152,10 @@ var MetricService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateMetricValue",
 			Handler:    _MetricService_UpdateMetricValue_Handler,
+		},
+		{
+			MethodName: "UpdateMetricValueEncrypted",
+			Handler:    _MetricService_UpdateMetricValueEncrypted_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

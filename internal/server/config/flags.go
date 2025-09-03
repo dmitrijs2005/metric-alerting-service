@@ -11,7 +11,7 @@ import (
 func parseFlags(config *Config) {
 
 	// filtering args to leave just values processed by parseFlags
-	args := common.FilterArgs(os.Args[1:], []string{"-d", "-a", "-i", "-f", "-k", "-r", "-crypto-key", "-t"})
+	args := common.FilterArgs(os.Args[1:], []string{"-d", "-a", "-i", "-f", "-k", "-r", "-crypto-key", "-t", "-g"})
 
 	fs := flag.NewFlagSet("main", flag.ContinueOnError)
 
@@ -30,6 +30,8 @@ func parseFlags(config *Config) {
 	fs.StringVar(&config.CryptoKey, "crypto-key", config.CryptoKey, "crypto key")
 
 	fs.StringVar(&config.TrustedSubnet, "t", config.TrustedSubnet, "trusted subnet")
+
+	fs.StringVar(&config.GRPCEndpointAddr, "g", config.GRPCEndpointAddr, "GRPC endpoint")
 
 	err := fs.Parse(args)
 	if err != nil {

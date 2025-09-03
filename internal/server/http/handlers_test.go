@@ -16,6 +16,7 @@ import (
 	"github.com/dmitrijs2005/metric-alerting-service/internal/common"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/dto"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/server/usecase"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage/db"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage/memory"
 	"github.com/labstack/echo/v4"
@@ -473,127 +474,58 @@ func TestHTTPServer_UpdateJSONHandler(t *testing.T) {
 // 	}
 // }
 
-func TestHTTPServer_addNewMetric(t *testing.T) {
+// func TestHTTPServer_updateMetricByValue(t *testing.T) {
+// 	ctx := context.Background()
+// 	type args struct {
+// 		metricValue interface{}
+// 		metricType  string
+// 		metricName  string
+// 	}
+// 	tests := []struct {
+// 		args    args
+// 		want    metric.Metric
+// 		name    string
+// 		wantErr bool
+// 	}{
+// 		{name: "Counter", args: args{metricType: "counter", metricName: "c1", metricValue: int64(1)}, wantErr: false, want: &metric.Counter{Name: "c1", Value: int64(1)}},
+// 	}
+// 	for _, tt := range tests {
+// 		t.Run(tt.name, func(t *testing.T) {
+// 			s := prepareTestServer()
+// 			got, err := s.updateMetricByValue(ctx, tt.args.metricType, tt.args.metricName, tt.args.metricValue)
+// 			if (err != nil) != tt.wantErr {
+// 				t.Errorf("HTTPServer.updateMetricByValue() error = %v, wantErr %v", err, tt.wantErr)
+// 				return
+// 			}
+// 			if !reflect.DeepEqual(got, tt.want) {
+// 				t.Errorf("HTTPServer.updateMetricByValue() = %v, want %v", got, tt.want)
+// 			}
+// 		})
+// 	}
+// }
 
-	ctx := context.Background()
-
-	type args struct {
-		metricValue any
-		metricType  string
-		metricName  string
-	}
-	tests := []struct {
-		args    args
-		want    metric.Metric
-		name    string
-		wantErr bool
-	}{
-		{name: "Counter OK", args: args{metricType: "counter", metricName: "c2", metricValue: int64(1)}, wantErr: false, want: &metric.Counter{Name: "c2", Value: int64(1)}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := prepareTestServer()
-			got, err := s.addNewMetric(ctx, tt.args.metricType, tt.args.metricName, tt.args.metricValue)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("HTTPServer.addNewMetric() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("HTTPServer.addNewMetric() = %v, want %v", got, tt.want)
-			}
-			m, err := s.retrieveMetric(ctx, tt.args.metricType, tt.args.metricName)
-			if err != nil {
-				t.Errorf("HTTPServer.updateMetric() error = %v, wantErr %v", err, tt.wantErr)
-			}
-			if !reflect.DeepEqual(m, tt.want) {
-				t.Errorf("HTTPServer.addNewMetric() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestHTTPServer_newMetricWithValue(t *testing.T) {
-	type args struct {
-		metricValue any
-		metricType  string
-		metricName  string
-	}
-	tests := []struct {
-		args    args
-		want    metric.Metric
-		name    string
-		wantErr bool
-	}{
-		{name: "Counter", args: args{metricType: "counter", metricName: "c1", metricValue: int64(1)}, wantErr: false, want: &metric.Counter{Name: "c1", Value: int64(1)}},
-		{name: "Gauge", args: args{metricType: "gauge", metricName: "g1", metricValue: float64(1.234)}, wantErr: false, want: &metric.Gauge{Name: "g1", Value: float64(1.234)}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := prepareTestServer()
-			got, err := s.newMetricWithValue(tt.args.metricType, tt.args.metricName, tt.args.metricValue)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("HTTPServer.newMetricWithValue() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("HTTPServer.newMetricWithValue() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestHTTPServer_updateMetricByValue(t *testing.T) {
-	ctx := context.Background()
-	type args struct {
-		metricValue interface{}
-		metricType  string
-		metricName  string
-	}
-	tests := []struct {
-		args    args
-		want    metric.Metric
-		name    string
-		wantErr bool
-	}{
-		{name: "Counter", args: args{metricType: "counter", metricName: "c1", metricValue: int64(1)}, wantErr: false, want: &metric.Counter{Name: "c1", Value: int64(1)}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := prepareTestServer()
-			got, err := s.updateMetricByValue(ctx, tt.args.metricType, tt.args.metricName, tt.args.metricValue)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("HTTPServer.updateMetricByValue() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("HTTPServer.updateMetricByValue() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestHTTPServer_fillValue(t *testing.T) {
-	type args struct {
-		m metric.Metric
-		r *dto.Metrics
-	}
-	tests := []struct {
-		args    args
-		name    string
-		wantErr bool
-	}{
-		{name: "OK", args: args{m: &metric.Counter{Name: "c1", Value: int64(1)}, r: &dto.Metrics{}}, wantErr: false},
-		{name: "Error", args: args{m: &metric.Gauge{Name: "g1", Value: float64(1.234)}, r: &dto.Metrics{}}, wantErr: false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := prepareTestServer()
-			if err := s.fillValue(tt.args.m, tt.args.r); (err != nil) != tt.wantErr {
-				t.Errorf("HTTPServer.fillValue() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
+// func TestHTTPServer_fillValue(t *testing.T) {
+// 	type args struct {
+// 		m metric.Metric
+// 		r *dto.Metrics
+// 	}
+// 	tests := []struct {
+// 		args    args
+// 		name    string
+// 		wantErr bool
+// 	}{
+// 		{name: "OK", args: args{m: &metric.Counter{Name: "c1", Value: int64(1)}, r: &dto.Metrics{}}, wantErr: false},
+// 		{name: "Error", args: args{m: &metric.Gauge{Name: "g1", Value: float64(1.234)}, r: &dto.Metrics{}}, wantErr: false},
+// 	}
+// 	for _, tt := range tests {
+// 		t.Run(tt.name, func(t *testing.T) {
+// 			s := prepareTestServer()
+// 			if err := s.fillValue(tt.args.m, tt.args.r); (err != nil) != tt.wantErr {
+// 				t.Errorf("HTTPServer.fillValue() error = %v, wantErr %v", err, tt.wantErr)
+// 			}
+// 		})
+// 	}
+// }
 
 func TestHTTPServer_MetricFromDto(t *testing.T) {
 	type args struct {
@@ -680,7 +612,7 @@ func TestHTTPServer_UpdatesJSONHandler(t *testing.T) {
 			}
 
 			for _, mwant := range tt.want {
-				m, err := s.retrieveMetric(ctx, string(mwant.GetType()), mwant.GetName())
+				m, err := usecase.RetrieveMetric(ctx, s.Storage, string(mwant.GetType()), mwant.GetName())
 				if (err != nil) != tt.wantErr {
 					t.Errorf("HTTPServer.TestHTTPServer_UpdatesJSONHandler() error = %v, wantErr %v", err, tt.wantErr)
 					return

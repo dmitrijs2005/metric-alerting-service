@@ -125,6 +125,50 @@ func (x *UpdateMetricValueResponse) GetValue() string {
 	return ""
 }
 
+type EncryptedMessage struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Data          []byte                 `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EncryptedMessage) Reset() {
+	*x = EncryptedMessage{}
+	mi := &file_internal_proto_metrics_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EncryptedMessage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EncryptedMessage) ProtoMessage() {}
+
+func (x *EncryptedMessage) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_proto_metrics_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EncryptedMessage.ProtoReflect.Descriptor instead.
+func (*EncryptedMessage) Descriptor() ([]byte, []int) {
+	return file_internal_proto_metrics_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *EncryptedMessage) GetData() []byte {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
 var File_internal_proto_metrics_proto protoreflect.FileDescriptor
 
 const file_internal_proto_metrics_proto_rawDesc = "" +
@@ -137,9 +181,12 @@ const file_internal_proto_metrics_proto_rawDesc = "" +
 	"metricName\x12!\n" +
 	"\fmetric_value\x18\x03 \x01(\tR\vmetricValue\"1\n" +
 	"\x19UpdateMetricValueResponse\x12\x14\n" +
-	"\x05value\x18\x01 \x01(\tR\x05value2\x8b\x01\n" +
+	"\x05value\x18\x01 \x01(\tR\x05value\"&\n" +
+	"\x10EncryptedMessage\x12\x12\n" +
+	"\x04data\x18\x01 \x01(\fR\x04data2\x88\x02\n" +
 	"\rMetricService\x12z\n" +
-	"\x11UpdateMetricValue\x121.metric.alerting.service.UpdateMetricValueRequest\x1a2.metric.alerting.service.UpdateMetricValueResponseBEZCgithub.com/dmitrijs2005/metric-alerting-service/internal/grpc/protob\x06proto3"
+	"\x11UpdateMetricValue\x121.metric.alerting.service.UpdateMetricValueRequest\x1a2.metric.alerting.service.UpdateMetricValueResponse\x12{\n" +
+	"\x1aUpdateMetricValueEncrypted\x12).metric.alerting.service.EncryptedMessage\x1a2.metric.alerting.service.UpdateMetricValueResponseBEZCgithub.com/dmitrijs2005/metric-alerting-service/internal/grpc/protob\x06proto3"
 
 var (
 	file_internal_proto_metrics_proto_rawDescOnce sync.Once
@@ -153,16 +200,19 @@ func file_internal_proto_metrics_proto_rawDescGZIP() []byte {
 	return file_internal_proto_metrics_proto_rawDescData
 }
 
-var file_internal_proto_metrics_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_internal_proto_metrics_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_internal_proto_metrics_proto_goTypes = []any{
 	(*UpdateMetricValueRequest)(nil),  // 0: metric.alerting.service.UpdateMetricValueRequest
 	(*UpdateMetricValueResponse)(nil), // 1: metric.alerting.service.UpdateMetricValueResponse
+	(*EncryptedMessage)(nil),          // 2: metric.alerting.service.EncryptedMessage
 }
 var file_internal_proto_metrics_proto_depIdxs = []int32{
 	0, // 0: metric.alerting.service.MetricService.UpdateMetricValue:input_type -> metric.alerting.service.UpdateMetricValueRequest
-	1, // 1: metric.alerting.service.MetricService.UpdateMetricValue:output_type -> metric.alerting.service.UpdateMetricValueResponse
-	1, // [1:2] is the sub-list for method output_type
-	0, // [0:1] is the sub-list for method input_type
+	2, // 1: metric.alerting.service.MetricService.UpdateMetricValueEncrypted:input_type -> metric.alerting.service.EncryptedMessage
+	1, // 2: metric.alerting.service.MetricService.UpdateMetricValue:output_type -> metric.alerting.service.UpdateMetricValueResponse
+	1, // 3: metric.alerting.service.MetricService.UpdateMetricValueEncrypted:output_type -> metric.alerting.service.UpdateMetricValueResponse
+	2, // [2:4] is the sub-list for method output_type
+	0, // [0:2] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
@@ -179,7 +229,7 @@ func file_internal_proto_metrics_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_proto_metrics_proto_rawDesc), len(file_internal_proto_metrics_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

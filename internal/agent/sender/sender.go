@@ -20,6 +20,7 @@ import (
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/secure"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
 
 	pb "github.com/dmitrijs2005/metric-alerting-service/internal/proto"
 )
@@ -143,6 +144,30 @@ func (s *Sender) MetricToDto(m metric.Metric) (*dto.Metrics, error) {
 	return data, nil
 }
 
+func (s *Sender) SendMetricGRPCEncrypted(m metric.Metric, client pb.MetricServiceClient, req *pb.UpdateMetricValueRequest) error {
+
+	reqb, err := proto.Marshal(req)
+	if err != nil {
+		common.NewWrappedError("Error marshalling request", err)
+	}
+
+	encryptedData, err := secure.EncryptRSAOAEPChunked(reqb, s.PubKey)
+	if err != nil {
+		return common.NewWrappedError("Error sending request", err)
+	}
+
+	reqb = []byte(encryptedData)
+	reqEncrypted := &pb.EncryptedMessage{Data: reqb}
+
+	_, err = client.UpdateMetricValueEncrypted(context.Background(), reqEncrypted)
+	if err != nil {
+		return err
+	}
+
+	return nil
+
+}
+
 // SendMetricGRPC sends a single metric to the configured gRPC server.
 //
 // It creates a new MetricService client from the existing gRPC connection,
@@ -157,11 +182,29 @@ func (s *Sender) MetricToDto(m metric.Metric) (*dto.Metrics, error) {
 func (s *Sender) SendMetricGRPC(m metric.Metric) error {
 
 	client := pb.NewMetricServiceClient(s.gRPCConn)
+
 	req := &pb.UpdateMetricValueRequest{MetricType: string(m.GetType()), MetricName: m.GetName(), MetricValue: fmt.Sprintf("%v", m.GetValue())}
+
+	if s.PubKey != nil {
+		return s.SendMetricGRPCEncrypted(m, client, req)
+	}
+
 	_, err := client.UpdateMetricValue(context.Background(), req)
 	if err != nil {
 		return err
 	}
+
+	//UpdateMetricValue
+
+	// signing if key is specified
+	// if s.Key != "" {
+	// 	var sign []byte
+	// 	sign, err = secure.CreateAes256Signature(jsonData, s.Key)
+	// 	if err != nil {
+	// 		return common.NewWrappedError("Error signing request", err)
+	// 	}
+	// 	req.Header.Set("HashSHA256", base64.RawStdEncoding.EncodeToString(sign))
+	// }
 
 	return nil
 }
@@ -356,8 +399,6 @@ func (s *Sender) SendAllMetrics() error {
 func (s *Sender) Run(ctx context.Context, wg *sync.WaitGroup) error {
 
 	if s.UseGRPC {
-
-		fmt.Println("s.ServerURL", s.ServerURL)
 
 		conn, err := grpc.NewClient(s.ServerURL, grpc.WithInsecure())
 		if err != nil {

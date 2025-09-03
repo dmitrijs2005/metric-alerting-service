@@ -1,7 +1,6 @@
 package http
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -14,97 +13,6 @@ import (
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
 	"github.com/labstack/echo/v4"
 )
-
-// func (s *HTTPServer) retrieveMetric(ctx context.Context, metricType string, metricName string) (metric.Metric, error) {
-// 	return s.Storage.Retrieve(ctx, metric.MetricType(metricType), metricName)
-// }
-
-func (s *HTTPServer) updateMetric(ctx context.Context, m metric.Metric, metricValue any) error {
-	x := s.Storage.Update(ctx, m, metricValue)
-	return x
-}
-
-func (s *HTTPServer) addNewMetric(ctx context.Context, metricType string, metricName string, metricValue any) (metric.Metric, error) {
-	m, err := s.newMetricWithValue(metricType, metricName, metricValue)
-	if err != nil {
-		return nil, err
-	}
-	err = s.Storage.Add(ctx, m)
-	if err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func (s *HTTPServer) newMetricWithValue(metricType string, metricName string, metricValue any) (metric.Metric, error) {
-	m, err := metric.NewMetric(metric.MetricType(metricType), metricName)
-	if err != nil {
-		return nil, err
-	}
-
-	if gauge, ok := m.(*metric.Gauge); ok {
-		if err := gauge.Update(metricValue); err != nil {
-			return nil, err
-		}
-	} else if counter, ok := m.(*metric.Counter); ok {
-		if err := counter.Update(metricValue); err != nil {
-			return nil, err
-		}
-	} else {
-		return nil, metric.ErrorInvalidMetricType
-	}
-
-	return m, nil
-}
-
-func (s *HTTPServer) updateMetricByValue(ctx context.Context, metricType string, metricName string, metricValue interface{}) (metric.Metric, error) {
-
-	m, err := usecase.RetrieveMetric(ctx, s.Storage, metricType, metricName)
-
-	if err != nil {
-		if !errors.Is(err, common.ErrorMetricDoesNotExist) {
-			return nil, err
-		} else {
-			m, err = s.addNewMetric(ctx, metricType, metricName, metricValue)
-			if err != nil {
-				return nil, err
-			}
-		}
-	} else {
-		err = s.updateMetric(ctx, m, metricValue)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return m, nil
-
-}
-
-// curl -v -X POST 'http://localhost:8080/update/' -H "Content-Type: application/json" -d '{"id":"g22","type":"gauge","value":123.12}'
-// curl -v -X POST 'http://localhost:8080/update/' -H "Content-Type: application/json" -d '{"id":"c33","type":"counter","delta":3}'
-
-func (s *HTTPServer) fillValue(m metric.Metric, r *dto.Metrics) error {
-	switch m.GetType() {
-	case metric.MetricTypeCounter:
-		int64Val, ok := m.GetValue().(int64)
-		if ok {
-			r.Delta = &int64Val
-		} else {
-			return common.ErrorTypeConversion
-		}
-	case metric.MetricTypeGauge:
-		float64Val, ok := m.GetValue().(float64)
-		if ok {
-			r.Value = &float64Val
-		} else {
-			return common.ErrorTypeConversion
-		}
-	default:
-		return metric.ErrorInvalidMetricType
-	}
-	return nil
-}
 
 func (s *HTTPServer) MetricFromDto(mDTO dto.Metrics) (metric.Metric, error) {
 
@@ -200,7 +108,7 @@ func (s *HTTPServer) UpdateJSONHandler(c echo.Context) error {
 		return c.String(http.StatusBadRequest, metric.ErrorInvalidMetricType.Error())
 	}
 
-	m, err := s.updateMetricByValue(ctx, mDTO.MType, mDTO.ID, metricValue)
+	m, err := usecase.UpdateMetricByValue(ctx, s.Storage, mDTO.MType, mDTO.ID, metricValue)
 	if err != nil {
 		s.logger.Errorw("Error updating metric", "err", err)
 
@@ -253,7 +161,7 @@ func (s *HTTPServer) UpdateHandler(c echo.Context) error {
 	metricName := c.Param("name")
 	metricValue := c.Param("value")
 
-	_, err := s.updateMetricByValue(ctx, metricType, metricName, metricValue)
+	_, err := usecase.UpdateMetricByValue(ctx, s.Storage, metricType, metricName, metricValue)
 
 	if err != nil {
 
@@ -319,7 +227,7 @@ func (s *HTTPServer) ValueJSONHandler(c echo.Context) error {
 		}
 	}
 
-	err = s.fillValue(m, mDTO)
+	err = usecase.FillValue(m, mDTO)
 
 	if err != nil {
 		return c.String(http.StatusInternalServerError, err.Error())

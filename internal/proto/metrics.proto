@@ -14,7 +14,12 @@ message UpdateMetricValueResponse {
   string value = 1;
 }
 
+message EncryptedMessage {
+  bytes data = 1;
+}
+
 // Stat service definition.
 service MetricService {
   rpc UpdateMetricValue(UpdateMetricValueRequest) returns (UpdateMetricValueResponse);
+  rpc UpdateMetricValueEncrypted(EncryptedMessage) returns (UpdateMetricValueResponse);
 }

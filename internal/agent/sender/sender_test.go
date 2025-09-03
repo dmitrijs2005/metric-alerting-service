@@ -18,7 +18,7 @@ import (
 
 func TestMetricToDto_ValidGauge(t *testing.T) {
 	data := &sync.Map{}
-	s, err := NewSender(data, time.Second, "http://localhost", "", 1, "")
+	s, err := NewSender(data, time.Second, "http://localhost", "", 1, "", false)
 	require.NoError(t, err)
 
 	m := metric.NewGauge("cpu_load")
@@ -49,7 +49,7 @@ func TestSendMetric_Success(t *testing.T) {
 	defer ts.Close()
 
 	data := &sync.Map{}
-	s, _ := NewSender(data, time.Second, ts.URL, "", 1, "")
+	s, _ := NewSender(data, time.Second, ts.URL, "", 1, "", false)
 
 	m := metric.NewGauge("cpu_load")
 	m.Update(1.23)
@@ -80,7 +80,7 @@ func TestSendAllMetricsInOneBatch_Success(t *testing.T) {
 	g.Update(99.9)
 	data.Store("temp", g)
 
-	s, _ := NewSender(data, time.Second, ts.URL, "", 1, "")
+	s, _ := NewSender(data, time.Second, ts.URL, "", 1, "", false)
 
 	err := s.SendAllMetricsInOneBatch()
 	require.NoError(t, err)
@@ -108,7 +108,7 @@ func TestRun_SendsMetrics(t *testing.T) {
 	g.Update(0.99)
 	data.Store("load", g)
 
-	s, _ := NewSender(data, 50*time.Millisecond, ts.URL, "", 1, "")
+	s, _ := NewSender(data, 50*time.Millisecond, ts.URL, "", 1, "", false)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
@@ -163,7 +163,7 @@ func TestSender_GracefulShutdown_WaitsForInFlightMetrics(t *testing.T) {
 	data.Store("counter1", metric.NewCounter("counter1"))
 
 	// create Sender with short report interval
-	s, err := NewSender(data, 100*time.Millisecond, srv.URL, "", 1, "")
+	s, err := NewSender(data, 100*time.Millisecond, srv.URL, "", 1, "", false)
 	if err != nil {
 		t.Fatalf("failed to create sender: %v", err)
 	}

@@ -133,7 +133,7 @@ func (app *App) startGRPCServer(ctx context.Context, cancelFunc context.CancelFu
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		s, err := gs.NewgRPCMetricsServer(app.config.GRPCEndpointAddr, s, app.logger)
+		s, err := gs.NewgRPCMetricsServer(app.config.GRPCEndpointAddr, s, app.logger, app.config.TrustedSubnet, app.config.CryptoKey)
 		if err != nil {
 			app.logger.Error(err)
 			cancelFunc()

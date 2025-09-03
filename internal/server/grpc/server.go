@@ -2,29 +2,45 @@ package grpc
 
 import (
 	"context"
-	"errors"
-	"fmt"
+	"crypto/rsa"
 	"net"
 
-	"github.com/dmitrijs2005/metric-alerting-service/internal/common"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/logger"
 	pb "github.com/dmitrijs2005/metric-alerting-service/internal/proto"
-	"github.com/dmitrijs2005/metric-alerting-service/internal/server/usecase"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/secure"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 type MetricsServer struct {
 	pb.UnimplementedMetricServiceServer
-	address string
-	storage storage.Storage
-	logger  logger.Logger
+	address       string
+	storage       storage.Storage
+	logger        logger.Logger
+	trustedSubnet *net.IPNet
+	privateKey    *rsa.PrivateKey
 }
 
-func NewgRPCMetricsServer(a string, s storage.Storage, l logger.Logger) (*MetricsServer, error) {
-	return &MetricsServer{address: a, storage: s, logger: l}, nil
+func NewgRPCMetricsServer(a string, s storage.Storage, l logger.Logger, trustedSubnet string, cryptoKey string) (*MetricsServer, error) {
+
+	var cidr *net.IPNet
+	var privKey *rsa.PrivateKey
+	var err error
+	if trustedSubnet != "" {
+		_, cidr, err = net.ParseCIDR(trustedSubnet)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if cryptoKey != "" {
+		privKey, err = secure.LoadRSAPrivateKeyFromPEM(cryptoKey)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &MetricsServer{address: a, storage: s, logger: l, trustedSubnet: cidr, privateKey: privKey}, nil
 }
 
 func (s *MetricsServer) Run(ctx context.Context) error {
@@ -33,6 +49,12 @@ func (s *MetricsServer) Run(ctx context.Context) error {
 	listen, err := net.Listen("tcp", s.address)
 	if err != nil {
 		return err
+	}
+
+	var opts []grpc.ServerOption
+
+	if s.trustedSubnet != nil {
+		opts = append(opts, grpc.UnaryInterceptor(NewTrustedSubnetInterceptor(s.trustedSubnet)))
 	}
 
 	// creates gRPC-server
@@ -55,29 +77,4 @@ func (s *MetricsServer) Run(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-func (s *MetricsServer) UpdateMetricValue(ctx context.Context, req *pb.UpdateMetricValueRequest) (*pb.UpdateMetricValueResponse, error) {
-	var response pb.UpdateMetricValueResponse
-
-	m, err := usecase.RetrieveMetric(ctx, s.storage, req.MetricType, req.MetricName)
-
-	if err != nil {
-		if !errors.Is(err, common.ErrorMetricDoesNotExist) {
-			return nil, status.Error(codes.Internal, err.Error())
-		} else {
-			m, err = usecase.AddNewMetric(ctx, s.storage, req.MetricType, req.MetricName, req.MetricValue)
-			if err != nil {
-				return nil, err
-			}
-		}
-	} else {
-		err = usecase.UpdateMetric(ctx, s.storage, m, req.MetricValue)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	response.Value = fmt.Sprintf("%v", m.GetValue())
-	return &response, nil
 }

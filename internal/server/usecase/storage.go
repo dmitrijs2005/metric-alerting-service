@@ -79,7 +79,7 @@ func UpdateMetricByValue(ctx context.Context, storage storage.Storage, metricTyp
 // curl -v -X POST 'http://localhost:8080/update/' -H "Content-Type: application/json" -d '{"id":"g22","type":"gauge","value":123.12}'
 // curl -v -X POST 'http://localhost:8080/update/' -H "Content-Type: application/json" -d '{"id":"c33","type":"counter","delta":3}'
 
-func fillValue(m metric.Metric, r *dto.Metrics) error {
+func FillValue(m metric.Metric, r *dto.Metrics) error {
 	switch m.GetType() {
 	case metric.MetricTypeCounter:
 		int64Val, ok := m.GetValue().(int64)
