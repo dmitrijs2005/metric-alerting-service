@@ -12,6 +12,11 @@ import (
 	"google.golang.org/grpc"
 )
 
+// MetricsServer implements the gRPC MetricServiceServer.
+//
+// It provides handlers for updating metric values (plain and encrypted),
+// enforces optional trusted subnet restrictions, and manages lifecycle
+// of the gRPC server instance.
 type MetricsServer struct {
 	pb.UnimplementedMetricServiceServer
 	address       string
@@ -21,6 +26,19 @@ type MetricsServer struct {
 	privateKey    *rsa.PrivateKey
 }
 
+// NewgRPCMetricsServer creates a new instance of MetricsServer.
+//
+// Parameters:
+//   - a: TCP address to bind the server on (e.g. ":8080").
+//   - s: storage backend implementing Storage interface.
+//   - l: logger for structured logging.
+//   - trustedSubnet: optional CIDR string to restrict access
+//     by client IP address (empty string disables check).
+//   - cryptoKey: optional PEM-encoded RSA private key used for
+//     decrypting encrypted requests (empty string disables encryption).
+//
+// Returns a configured MetricsServer instance or an error if parsing
+// trustedSubnet or loading cryptoKey fails.
 func NewgRPCMetricsServer(a string, s storage.Storage, l logger.Logger, trustedSubnet string, cryptoKey string) (*MetricsServer, error) {
 
 	var cidr *net.IPNet
@@ -43,6 +61,11 @@ func NewgRPCMetricsServer(a string, s storage.Storage, l logger.Logger, trustedS
 	return &MetricsServer{address: a, storage: s, logger: l, trustedSubnet: cidr, privateKey: privKey}, nil
 }
 
+// UpdateMetricValue handles an UpdateMetricValueRequest by creating or updating
+// a metric in the storage backend.
+//
+// If the metric does not exist, it is created. Otherwise, its value is updated.
+// Returns the resulting metric value as a string in the response.
 func (s *MetricsServer) Run(ctx context.Context) error {
 
 	// announces address

@@ -146,6 +146,25 @@ func (s *Sender) MetricToDto(m metric.Metric) (*dto.Metrics, error) {
 	return data, nil
 }
 
+// SendMetricGRPCEncrypted marshals and sends a metric update request to a gRPC server
+// using RSA/OAEP encryption.
+//
+// The method works as follows:
+//  1. Marshals the provided UpdateMetricValueRequest into bytes.
+//  2. Encrypts the bytes with the Sender's configured RSA public key,
+//     using chunked RSA-OAEP encryption.
+//  3. Wraps the encrypted payload into an EncryptedMessage.
+//  4. Calls the UpdateMetricValueEncrypted RPC on the given MetricServiceClient.
+//
+// If the public key is not configured, it returns an error. Errors from
+// marshalling, encryption, or the RPC call are wrapped and propagated.
+//
+// Parameters:
+//   - m: Metric to send (currently unused, may be used for logging or future extensions).
+//   - client: gRPC MetricServiceClient used to send the request.
+//   - req: the UpdateMetricValueRequest containing metric type, name, and value.
+//
+// Returns an error if marshalling, encryption, or RPC invocation fails.
 func (s *Sender) SendMetricGRPCEncrypted(m metric.Metric, client pb.MetricServiceClient, req *pb.UpdateMetricValueRequest) error {
 
 	reqb, err := proto.Marshal(req)
@@ -174,17 +193,17 @@ func (s *Sender) SendMetricGRPCEncrypted(m metric.Metric, client pb.MetricServic
 
 }
 
-// SendMetricGRPC sends a single metric to the configured gRPC server.
+// SendMetricGRPC sends a metric update request to the gRPC server.
 //
-// It creates a new MetricService client from the existing gRPC connection,
-// builds an UpdateMetricValueRequest from the provided metric, and performs
-// a unary RPC call to update the metric value on the remote server.
+// It constructs an UpdateMetricValueRequest from the provided Metric and sends it
+// using the configured gRPC client connection. If the Sender is configured with a
+// public key, the request is encrypted and sent using SendMetricGRPCEncrypted.
+// Otherwise, the request is sent in plaintext.
 //
-// The metric's type, name, and value are serialized into the request. The
-// call is executed with a background context (no timeout or cancellation).
+// Parameters:
+//   - m: Metric to be sent, providing type, name, and value.
 //
-// If the gRPC call fails, the error is returned; otherwise, SendMetricGRPC
-// returns nil.
+// Returns an error if encryption, request construction, or the RPC call fails.
 func (s *Sender) SendMetricGRPC(m metric.Metric) error {
 
 	client := pb.NewMetricServiceClient(s.gRPCConn)
