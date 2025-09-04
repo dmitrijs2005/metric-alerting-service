@@ -2,8 +2,10 @@ package file
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
@@ -94,4 +96,107 @@ func BenchmarkFileSaver_RestoreDump(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_ = fs.RestoreDump(ctx)
 	}
+}
+
+type faultyStorage struct{}
+
+func (f faultyStorage) Add(ctx context.Context, m metric.Metric) error {
+	return errors.New("forced error in Add")
+}
+func (f faultyStorage) Update(ctx context.Context, m metric.Metric, v interface{}) error {
+	return errors.New("forced error in Update")
+}
+func (f faultyStorage) Retrieve(ctx context.Context, t metric.MetricType, n string) (metric.Metric, error) {
+	return nil, errors.New("forced error in Retrieve")
+}
+func (f faultyStorage) RetrieveAll(ctx context.Context) ([]metric.Metric, error) {
+	return nil, errors.New("forced error in RetrieveAll")
+}
+func (f faultyStorage) UpdateBatch(ctx context.Context, metrics *[]metric.Metric) error {
+	return errors.New("forced error in UpdateBatch")
+}
+
+func TestFileSaver_SaveDump_RetrieveAllError(t *testing.T) {
+	fs := &FileSaver{
+		FileStoragePath: "ignored",
+		Storage:         &faultyStorage{},
+	}
+
+	err := fs.SaveDump(context.Background())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "forced error in RetrieveAll")
+}
+
+func TestFileSaver_SaveDump_FileOpenError(t *testing.T) {
+	tmp := t.TempDir()
+	path := tmp
+
+	fs := &FileSaver{
+		FileStoragePath: path,
+		Storage:         memory.NewMemStorage(),
+	}
+
+	err := fs.SaveDump(context.Background())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "error opening file")
+}
+
+func TestFileSaver_RestoreDump_InvalidLine(t *testing.T) {
+	tmp := t.TempDir()
+	path := tmp + "/dump.txt"
+
+	require.NoError(t, os.WriteFile(path, []byte("badline\n"), 0644))
+
+	fs := &FileSaver{FileStoragePath: path, Storage: memory.NewMemStorage()}
+	err := fs.RestoreDump(context.Background())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "invalid dump line")
+}
+
+func TestFileSaver_RestoreDump_NewMetricError(t *testing.T) {
+	tmp := t.TempDir()
+	path := tmp + "/dump.txt"
+
+	require.NoError(t, os.WriteFile(path, []byte("name:badtype:123\n"), 0644))
+
+	fs := &FileSaver{FileStoragePath: path, Storage: memory.NewMemStorage()}
+	err := fs.RestoreDump(context.Background())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "invalid metric type")
+}
+
+type brokenFile struct{}
+
+func (b *brokenFile) Read(p []byte) (int, error) { return 0, errors.New("read fail") }
+func (b *brokenFile) Close() error               { return nil }
+
+func TestFileSaver_RestoreDump_ScannerError(t *testing.T) {
+	orig := openFile
+	openFile = func(string) (*os.File, error) {
+		_ = &brokenFile{}
+		return (*os.File)(nil), errors.New("scanner fail")
+	}
+	defer func() { openFile = orig }()
+
+	fs := &FileSaver{FileStoragePath: "ignored", Storage: memory.NewMemStorage()}
+	err := fs.RestoreDump(context.Background())
+	require.Error(t, err)
+}
+
+func TestFileSaver_SaveDump_WriteError(t *testing.T) {
+	tmp := t.TempDir()
+	path := filepath.Join(tmp, "dump.txt")
+
+	mockStorage := memory.NewMemStorage()
+	mockStorage.Data[""] = &metric.Gauge{Name: "cpu", Value: float64(1.234)}
+
+	orig := openFileWriter
+	openFileWriter = func(string, int, os.FileMode) (*os.File, error) {
+		return os.NewFile(0, ""), nil
+	}
+	defer func() { openFileWriter = orig }()
+
+	fs := &FileSaver{FileStoragePath: path, Storage: mockStorage}
+	err := fs.SaveDump(context.Background())
+	require.Error(t, err)
 }

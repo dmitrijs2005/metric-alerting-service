@@ -1,10 +1,11 @@
-package httpserver
+package http
 
 import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -107,7 +108,6 @@ func (s *HTTPServer) CompressingMiddleware(next echo.HandlerFunc) echo.HandlerFu
 		// if gzip is not supported, do nothing
 		if strings.Contains(req.Header.Get("Accept-Encoding"), "gzip") {
 
-			// создаём gzip.Writer поверх текущего w
 			gw, err := NewGzipWriter(w, resp, s.GzipWriterPool)
 
 			if err != nil {
@@ -129,13 +129,11 @@ func (s *HTTPServer) CompressingMiddleware(next echo.HandlerFunc) echo.HandlerFu
 			})
 		}
 
-		// проверяем, что клиент отправил серверу сжатые данные в формате gzip
 		ce := req.Header.Get("Content-Encoding")
 		sendsGzip := strings.Contains(ce, "gzip")
 
 		if sendsGzip {
 
-			// оборачиваем тело запроса в io.Reader с поддержкой декомпрессии
 			r, err := NewGzipReader(req.Body)
 			if err != nil {
 				return echo.NewHTTPError(http.StatusInternalServerError, "Cannot initialize Gzip")
@@ -171,6 +169,30 @@ func (s *HTTPServer) DecryptMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 		}
 
 		c.Request().Body = io.NopCloser(bytes.NewBuffer(qw))
+
+		if err := next(c); err != nil {
+			c.Error(err)
+		}
+
+		return nil
+
+	}
+}
+
+func (s *HTTPServer) CheckTrustedSubnetMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c echo.Context) error {
+
+		req := c.Request()
+
+		realIP := req.Header.Get("X-Real-IP")
+
+		if realIP == "" {
+			return echo.NewHTTPError(http.StatusForbidden, "Cannot find real IP header")
+		}
+
+		if !s.TrustedSubnet.Contains(net.ParseIP(realIP)) {
+			return echo.NewHTTPError(http.StatusForbidden, "IP address is not in trusted subnet")
+		}
 
 		if err := next(c); err != nil {
 			c.Error(err)

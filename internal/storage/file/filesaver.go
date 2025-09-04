@@ -11,6 +11,9 @@ import (
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
 )
 
+var openFile = os.Open
+var openFileWriter = os.OpenFile
+
 // FileSaver is a file-based implementation of the DumpSaver interface.
 type FileSaver struct {
 	Storage         storage.Storage // Underlying metric storage
@@ -32,7 +35,7 @@ func (fs *FileSaver) SaveDump(ctx context.Context) error {
 		dump += "\n"
 	}
 
-	f, err := os.OpenFile(fs.FileStoragePath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0666)
+	f, err := openFileWriter(fs.FileStoragePath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0666)
 
 	if err != nil {
 		return fmt.Errorf("error opening file: %s", err.Error())
@@ -56,9 +59,9 @@ func (fs *FileSaver) SaveDump(ctx context.Context) error {
 func (fs *FileSaver) RestoreDump(ctx context.Context) error {
 
 	// Open the file for reading.
-	file, err := os.Open(fs.FileStoragePath)
+	file, err := openFile(fs.FileStoragePath)
 	if err != nil {
-		return fmt.Errorf("error opening file: %s", err.Error())
+		return fmt.Errorf("error opening file: %w", err)
 	}
 	defer file.Close()
 
@@ -70,6 +73,11 @@ func (fs *FileSaver) RestoreDump(ctx context.Context) error {
 		line := scanner.Text() // Get the current line.
 
 		parts := strings.Split(line, ":")
+
+		if len(parts) != 3 {
+			return fmt.Errorf("invalid dump line: %s", line)
+		}
+
 		metricName := parts[0]
 		metricType := parts[1]
 		metricValue := parts[2]

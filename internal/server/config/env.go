@@ -43,4 +43,8 @@ func parseEnv(config *Config) {
 		config.CryptoKey = envVar
 	}
 
+	if envVar, ok := os.LookupEnv("TRUSTED_SUBNET"); ok {
+		config.TrustedSubnet = envVar
+	}
+
 }

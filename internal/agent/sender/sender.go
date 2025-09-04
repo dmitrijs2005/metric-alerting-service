@@ -9,6 +9,7 @@ import (
 	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -19,6 +20,11 @@ import (
 	"github.com/dmitrijs2005/metric-alerting-service/internal/dto"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/secure"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/proto"
+
+	pb "github.com/dmitrijs2005/metric-alerting-service/internal/proto"
 )
 
 // Sender handles sending metrics to the monitoring server.
@@ -33,6 +39,8 @@ type Sender struct {
 	ReportInterval time.Duration
 	SendRateLimit  int
 	PubKey         *rsa.PublicKey
+	UseGRPC        bool
+	gRPCConn       *grpc.ClientConn
 }
 
 // NewSender creates and returns a new Sender instance.
@@ -46,7 +54,7 @@ type Sender struct {
 //
 // Returns:
 //   - *Sender: a new Sender instance.
-func NewSender(data *sync.Map, reportInterval time.Duration, serverURL string, key string, sendRateLimit int, cryptoKey string) (*Sender, error) {
+func NewSender(data *sync.Map, reportInterval time.Duration, serverURL string, key string, sendRateLimit int, cryptoKey string, useGRPC bool) (*Sender, error) {
 
 	var pubKey *rsa.PublicKey
 	var err error
@@ -79,7 +87,8 @@ func NewSender(data *sync.Map, reportInterval time.Duration, serverURL string, k
 				return new(bytes.Buffer)
 			},
 		},
-		PubKey: pubKey,
+		PubKey:  pubKey,
+		UseGRPC: useGRPC,
 	}, nil
 }
 
@@ -91,7 +100,14 @@ func (s *Sender) worker(ind int, jobs <-chan metric.Metric) {
 	defer common.WriteToConsole(fmt.Sprintf("%s exited", label))
 
 	for j := range jobs {
-		err := s.SendMetric(j)
+
+		var err error
+		if s.UseGRPC {
+			err = s.SendMetricGRPC(j)
+		} else {
+			err = s.SendMetric(j)
+		}
+
 		if err != nil {
 			common.WriteToConsole(fmt.Sprintf("Error sending metric %v", err))
 		} else {
@@ -128,6 +144,83 @@ func (s *Sender) MetricToDto(m metric.Metric) (*dto.Metrics, error) {
 		}
 	}
 	return data, nil
+}
+
+// SendMetricGRPCEncrypted marshals and sends a metric update request to a gRPC server
+// using RSA/OAEP encryption.
+//
+// The method works as follows:
+//  1. Marshals the provided UpdateMetricValueRequest into bytes.
+//  2. Encrypts the bytes with the Sender's configured RSA public key,
+//     using chunked RSA-OAEP encryption.
+//  3. Wraps the encrypted payload into an EncryptedMessage.
+//  4. Calls the UpdateMetricValueEncrypted RPC on the given MetricServiceClient.
+//
+// If the public key is not configured, it returns an error. Errors from
+// marshalling, encryption, or the RPC call are wrapped and propagated.
+//
+// Parameters:
+//   - m: Metric to send (currently unused, may be used for logging or future extensions).
+//   - client: gRPC MetricServiceClient used to send the request.
+//   - req: the UpdateMetricValueRequest containing metric type, name, and value.
+//
+// Returns an error if marshalling, encryption, or RPC invocation fails.
+func (s *Sender) SendMetricGRPCEncrypted(m metric.Metric, client pb.MetricServiceClient, req *pb.UpdateMetricValueRequest) error {
+
+	reqb, err := proto.Marshal(req)
+	if err != nil {
+		return common.NewWrappedError("Error marshalling request", err)
+	}
+
+	if s.PubKey == nil {
+		return errors.New("no public key specified")
+	}
+
+	encryptedData, err := secure.EncryptRSAOAEPChunked(reqb, s.PubKey)
+	if err != nil {
+		return common.NewWrappedError("Error sending request", err)
+	}
+
+	reqb = []byte(encryptedData)
+	reqEncrypted := &pb.EncryptedMessage{Data: reqb}
+
+	_, err = client.UpdateMetricValueEncrypted(context.Background(), reqEncrypted)
+	if err != nil {
+		return err
+	}
+
+	return nil
+
+}
+
+// SendMetricGRPC sends a metric update request to the gRPC server.
+//
+// It constructs an UpdateMetricValueRequest from the provided Metric and sends it
+// using the configured gRPC client connection. If the Sender is configured with a
+// public key, the request is encrypted and sent using SendMetricGRPCEncrypted.
+// Otherwise, the request is sent in plaintext.
+//
+// Parameters:
+//   - m: Metric to be sent, providing type, name, and value.
+//
+// Returns an error if encryption, request construction, or the RPC call fails.
+func (s *Sender) SendMetricGRPC(m metric.Metric) error {
+
+	client := pb.NewMetricServiceClient(s.gRPCConn)
+
+	req := &pb.UpdateMetricValueRequest{MetricType: string(m.GetType()), MetricName: m.GetName(), MetricValue: fmt.Sprintf("%v", m.GetValue())}
+
+	if s.PubKey != nil {
+		return s.SendMetricGRPCEncrypted(m, client, req)
+	}
+
+	fmt.Println(req)
+	_, err := client.UpdateMetricValue(context.Background(), req)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // SendMetric sends a single metric to the /update/ endpoint with gzip compression.
@@ -317,7 +410,17 @@ func (s *Sender) SendAllMetrics() error {
 // Parameters:
 //   - ctx: context for graceful shutdown.
 //   - wg: WaitGroup to signal when sender has stopped.
-func (s *Sender) Run(ctx context.Context, wg *sync.WaitGroup) {
+func (s *Sender) Run(ctx context.Context, wg *sync.WaitGroup) error {
+
+	if s.UseGRPC {
+
+		conn, err := grpc.NewClient(s.ServerURL, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			return err
+		}
+		defer conn.Close()
+		s.gRPCConn = conn
+	}
 
 	defer wg.Done()
 
@@ -351,5 +454,7 @@ loop:
 
 	close(s.Jobs)
 	workerWg.Wait()
+
+	return nil
 
 }

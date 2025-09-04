@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+option go_package = "github.com/dmitrijs2005/metric-alerting-service/internal/grpc/proto";
+
+package metric.alerting.service;
+
+message UpdateMetricValueRequest {
+  string metric_type = 1;
+  string metric_name = 2;
+  string metric_value = 3;
+}
+
+message UpdateMetricValueResponse {
+  string value = 1;
+}
+
+message EncryptedMessage {
+  bytes data = 1;
+}
+
+// Stat service definition.
+service MetricService {
+  rpc UpdateMetricValue(UpdateMetricValueRequest) returns (UpdateMetricValueResponse);
+  rpc UpdateMetricValueEncrypted(EncryptedMessage) returns (UpdateMetricValueResponse);
+}

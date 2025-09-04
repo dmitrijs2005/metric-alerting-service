@@ -40,4 +40,14 @@ func parseEnv(config *Config) {
 		config.CryptoKey = envVar
 	}
 
+	if envVar, ok := os.LookupEnv("USE_GRPC"); ok && envVar != "" {
+
+		val, err := strconv.ParseBool(envVar)
+		if err != nil {
+			panic(err)
+		}
+
+		config.UseGRPC = val
+	}
+
 }

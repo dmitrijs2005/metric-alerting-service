@@ -1,14 +1,15 @@
-package httpserver
+package http
 
 import (
 	"compress/gzip"
 	"context"
 	"crypto/rsa"
-	"fmt"
 	"html/template"
+	"net"
 	"net/http"
 	"sync"
 
+	"github.com/dmitrijs2005/metric-alerting-service/internal/assets"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/logger"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/secure"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
@@ -27,10 +28,11 @@ type HTTPServer struct {
 	Restore        bool
 	PrivateKey     *rsa.PrivateKey
 	TemplatePath   string
+	TrustedSubnet  *net.IPNet
 	wg             sync.WaitGroup
 }
 
-func NewHTTPServer(address string, key string, storage storage.Storage, logger logger.Logger, cryptoKey string, templatePath string) (*HTTPServer, error) {
+func NewHTTPServer(address string, key string, storage storage.Storage, logger logger.Logger, cryptoKey string, trustedSubnet string) (*HTTPServer, error) {
 
 	var privKey *rsa.PrivateKey
 	var err error
@@ -52,14 +54,33 @@ func NewHTTPServer(address string, key string, storage storage.Storage, logger l
 		},
 	}
 
-	return &HTTPServer{Address: address, Key: key, Storage: storage, logger: logger, GzipWriterPool: pool, PrivateKey: privKey, TemplatePath: templatePath}, nil
+	var cidr *net.IPNet
+	if trustedSubnet != "" {
+		_, cidr, err = net.ParseCIDR(trustedSubnet)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &HTTPServer{Address: address, Key: key, Storage: storage, logger: logger, GzipWriterPool: pool, PrivateKey: privKey, TrustedSubnet: cidr}, nil
+}
+
+func (s *HTTPServer) getUpdateMiddlewares() []echo.MiddlewareFunc {
+	var mws []echo.MiddlewareFunc
+	if s.PrivateKey != nil {
+		mws = append(mws, s.DecryptMiddleware)
+	}
+	if s.TrustedSubnet != nil {
+		mws = append(mws, s.CheckTrustedSubnetMiddleware)
+	}
+	return mws
 }
 
 func (s *HTTPServer) ConfigureRoutes() *echo.Echo {
 
 	// Load templates
 	t := &Template{
-		templates: template.Must(template.ParseGlob(fmt.Sprintf("%s/*.html", s.TemplatePath))),
+		templates: template.Must(template.ParseFS(assets.WebTemplates, "template/*.html")),
 	}
 
 	// Echo instance
@@ -71,23 +92,18 @@ func (s *HTTPServer) ConfigureRoutes() *echo.Echo {
 		e.Use(s.SignCheckMiddleware)
 	}
 
+	updateMws := s.getUpdateMiddlewares()
+
 	e.POST("/value/", s.ValueJSONHandler)
-	e.POST("/update/", s.UpdateJSONHandler, s.middlewareIf(s.PrivateKey != nil, s.DecryptMiddleware)...)
-	e.POST("/updates/", s.UpdatesJSONHandler, s.middlewareIf(s.PrivateKey != nil, s.DecryptMiddleware)...)
-	e.POST("/update/:type/:name/:value", s.UpdateHandler)
+	e.POST("/update/", s.UpdateJSONHandler, updateMws...)
+	e.POST("/updates/", s.UpdatesJSONHandler, updateMws...)
+	e.POST("/update/:type/:name/:value", s.UpdateHandler, updateMws...)
 	e.GET("/value/:type/:name", s.ValueHandler)
 	e.GET("/ping", s.PingHandler)
 	e.GET("/", s.ListHandler)
 
 	e.Renderer = t
 	return e
-}
-
-func (s *HTTPServer) middlewareIf(condtion bool, mw ...echo.MiddlewareFunc) []echo.MiddlewareFunc {
-	if condtion {
-		return mw
-	}
-	return nil
 }
 
 func (s *HTTPServer) Run(ctx context.Context, e *echo.Echo) error {

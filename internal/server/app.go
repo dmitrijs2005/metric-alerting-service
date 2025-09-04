@@ -5,20 +5,27 @@ package server
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 	"time"
 
-	"github.com/dmitrijs2005/metric-alerting-service/internal/httpserver"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/logger"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/server/config"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/server/http"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage/db"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage/file"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage/memory"
+
+	gs "github.com/dmitrijs2005/metric-alerting-service/internal/server/grpc"
 )
+
+var newPostgresClient = func(dsn string) (storage.DBStorage, error) {
+	return db.NewPostgresClient(dsn)
+}
 
 type App struct {
 	config *config.Config
@@ -57,7 +64,7 @@ func (app *App) initStorage(ctx context.Context) (storage.Storage, error) {
 
 		var err error
 
-		pgClient, err := db.NewPostgresClient(app.config.DatabaseDSN)
+		pgClient, err := newPostgresClient(app.config.DatabaseDSN)
 		if err != nil {
 			return nil, err
 		}
@@ -86,7 +93,7 @@ func (app *App) closeDBIfNeeded(s storage.Storage) (bool, error) {
 
 }
 
-func (app *App) restoreDumpIfNeeded(ctx context.Context, a *file.FileSaver, s storage.Storage) (bool, error) {
+func (app *App) restoreDumpIfNeeded(ctx context.Context, a file.DumpSaver, s storage.Storage) (bool, error) {
 
 	if !app.config.Restore {
 		return false, nil
@@ -110,22 +117,42 @@ func (app *App) startHTTPServer(ctx context.Context, cancelFunc context.CancelFu
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		s, err := httpserver.NewHTTPServer(app.config.EndpointAddr, app.config.Key, s, app.logger, app.config.CryptoKey, "web/template")
+		s, err := http.NewHTTPServer(app.config.EndpointAddr, app.config.Key, s, app.logger, app.config.CryptoKey, app.config.TrustedSubnet)
 		if err != nil {
 			app.logger.Error(err)
 			cancelFunc()
-		}
+		} else {
+			e := s.ConfigureRoutes()
 
-		e := s.ConfigureRoutes()
-
-		if err := s.Run(ctx, e); err != nil {
-			app.logger.Error(err)
-			cancelFunc()
+			if err := s.Run(ctx, e); err != nil {
+				app.logger.Error(err)
+				cancelFunc()
+			}
 		}
 	}()
 }
 
-func (app *App) saveDump(ctx context.Context, a *file.FileSaver) {
+func (app *App) startGRPCServer(ctx context.Context, cancelFunc context.CancelFunc, wg *sync.WaitGroup, s storage.Storage) {
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		s, err := gs.NewgRPCMetricsServer(app.config.GRPCEndpointAddr, s, app.logger, app.config.TrustedSubnet, app.config.CryptoKey)
+		if err != nil {
+			app.logger.Error(err)
+			cancelFunc()
+		} else {
+
+			if err := s.Run(ctx); err != nil {
+				app.logger.Error(err)
+				cancelFunc()
+			}
+		}
+	}()
+
+}
+
+func (app *App) saveDump(ctx context.Context, a file.DumpSaver) {
 
 	err := a.SaveDump(ctx)
 
@@ -140,11 +167,7 @@ func (app *App) saveDump(ctx context.Context, a *file.FileSaver) {
 func (app *App) initPeriodicDumpSaveIfNeeded(ctx context.Context, s storage.Storage, a *file.FileSaver, wg *sync.WaitGroup) {
 
 	_, ok := s.(storage.DBStorage)
-	if ok {
-		return
-	}
-
-	if app.config.StoreInterval == 0 {
+	if ok || app.config.StoreInterval == 0 {
 		return
 	}
 
@@ -169,14 +192,13 @@ func (app *App) initPeriodicDumpSaveIfNeeded(ctx context.Context, s storage.Stor
 	}()
 }
 
-func (app *App) saveDumpIfNeeded(ctx context.Context, s storage.Storage, a *file.FileSaver) {
+func (app *App) saveDumpIfNeeded(ctx context.Context, s storage.Storage, a file.DumpSaver) {
 
 	_, ok := s.(storage.DBStorage)
 	if ok {
 		return
 	}
 
-	// значение 0 делает запись синхронной
 	if app.config.StoreInterval != 0 {
 		return
 	}
@@ -211,13 +233,11 @@ func (app *App) Run() {
 		return
 	}
 
-	restored, err := app.restoreDumpIfNeeded(ctx, a, s)
-	if err != nil {
+	_, err = app.restoreDumpIfNeeded(ctx, a, s)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		app.logger.Errorw("Dump restore error", "err", err)
-	}
-
-	if restored {
-		app.logger.Infow("Dump restored successfully")
+		cancelFunc()
+		return
 	}
 
 	defer func() {
@@ -234,6 +254,9 @@ func (app *App) Run() {
 	var wg sync.WaitGroup
 
 	app.startHTTPServer(ctx, cancelFunc, &wg, s)
+
+	app.startGRPCServer(ctx, cancelFunc, &wg, s)
+
 	app.initPeriodicDumpSaveIfNeeded(ctx, s, a, &wg)
 
 	wg.Wait()

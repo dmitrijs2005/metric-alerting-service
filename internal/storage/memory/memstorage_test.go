@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -301,4 +302,74 @@ func BenchmarkMemStorage_ConcurrentAdd(b *testing.B) {
 			_ = stor.Add(ctx, m)
 		}
 	})
+}
+
+type fakeMetric struct {
+	name  string
+	typ   metric.MetricType
+	value interface{}
+	err   error
+}
+
+func (m *fakeMetric) GetName() string            { return m.name }
+func (m *fakeMetric) GetType() metric.MetricType { return m.typ }
+func (m *fakeMetric) GetValue() interface{}      { return m.value }
+func (m *fakeMetric) Update(v interface{}) error {
+	if m.err != nil {
+		return m.err
+	}
+	m.value = v
+	return nil
+}
+
+func TestMemStorage(t *testing.T) {
+	ctx := context.Background()
+	st := NewMemStorage()
+
+	m1 := &fakeMetric{name: "foo", typ: "gauge", value: 1}
+	m2 := &fakeMetric{name: "bar", typ: "counter", value: 10}
+
+	// Add + Retrieve
+	err := st.Add(ctx, m1)
+	assert.NoError(t, err)
+
+	got, err := st.Retrieve(ctx, "gauge", "foo")
+	assert.NoError(t, err)
+	assert.Equal(t, m1, got)
+
+	// Add
+	err = st.Add(ctx, m1)
+	assert.ErrorIs(t, err, common.ErrorMetricAlreadyExists)
+
+	// Retrieve
+	_, err = st.Retrieve(ctx, "gauge", "unknown")
+	assert.ErrorIs(t, err, common.ErrorMetricDoesNotExist)
+
+	// RetrieveAll
+	_ = st.Add(ctx, m2)
+	all, err := st.RetrieveAll(ctx)
+	assert.NoError(t, err)
+	assert.Len(t, all, 2)
+
+	// Update
+	err = st.Update(ctx, m1, 99)
+	assert.NoError(t, err)
+	assert.Equal(t, 99, m1.GetValue())
+
+	// Update
+	m3 := &fakeMetric{name: "baz", typ: "counter", value: 0}
+	err = st.Update(ctx, m3, 123)
+	assert.ErrorIs(t, err, common.ErrorMetricDoesNotExist)
+
+	// UpdateBatch
+	metrics := []metric.Metric{m1, m2}
+	err = st.UpdateBatch(ctx, &metrics)
+	assert.NoError(t, err)
+
+	// UpdateBatch
+	mErr := &fakeMetric{name: "bad", typ: "gauge", value: 0, err: errors.New("fail")}
+	_ = st.Add(ctx, mErr)
+	metricsWithErr := []metric.Metric{mErr}
+	err = st.UpdateBatch(ctx, &metricsWithErr)
+	assert.Error(t, err)
 }

@@ -22,6 +22,7 @@ type JsonConfig struct {
 	CryptoKey      string          `json:"crypto_key"`
 	SendRateLimit  int             `json:"send_rate_limit"`
 	Key            string          `json:"key"`
+	UseGRPC        bool            `json:"use_grpc"`
 }
 
 // parseJson loads configuration values from a JSON file into the provided
@@ -77,4 +78,5 @@ func parseJson(config *Config) {
 	config.Key = c.Key
 	config.SendRateLimit = c.SendRateLimit
 	config.CryptoKey = c.CryptoKey
+	config.UseGRPC = c.UseGRPC
 }

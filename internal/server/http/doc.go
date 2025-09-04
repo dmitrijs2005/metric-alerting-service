@@ -1,4 +1,4 @@
-// Package httpserver provides HTTP handlers for interacting with the metrics storage.
+// Package http provides HTTP handlers for interacting with the metrics storage.
 //
 // This package implements endpoints for updating, retrieving, and listing application metrics.
 // It supports both individual and batch operations via JSON or path parameters,
@@ -16,4 +16,4 @@
 //
 // All handlers are implemented as methods on the HTTPServer struct,
 // and rely on a shared metric storage layer and logging interface.
-package httpserver
+package http

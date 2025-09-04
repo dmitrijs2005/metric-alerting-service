@@ -24,7 +24,7 @@ type MetricAgent struct {
 func NewMetricAgent(cfg *config.Config) (*MetricAgent, error) {
 
 	collector := collector.NewCollector(cfg.PollInterval)
-	sender, err := sender.NewSender(&collector.Data, cfg.ReportInterval, cfg.EndpointAddr, cfg.Key, cfg.SendRateLimit, cfg.CryptoKey)
+	sender, err := sender.NewSender(&collector.Data, cfg.ReportInterval, cfg.EndpointAddr, cfg.Key, cfg.SendRateLimit, cfg.CryptoKey, cfg.UseGRPC)
 
 	if err != nil {
 		return nil, err

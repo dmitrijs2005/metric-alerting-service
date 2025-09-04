@@ -30,6 +30,10 @@ func NewPostgresClient(dsn string) (*PostgresClient, error) {
 	return &PostgresClient{db}, nil
 }
 
+func NewPostgresClientFromDB(db *sql.DB) *PostgresClient {
+	return &PostgresClient{db: db}
+}
+
 // Close closes the underlying database connection.
 func (c *PostgresClient) Close() error {
 	return c.db.Close()
@@ -132,10 +136,7 @@ func (c *PostgresClient) ExecuteAdd(ctx context.Context, exec DBExecutor, m metr
 		mvi.Int64 = counter.Value
 		mvi.Valid = true
 		mvf.Valid = false
-	} else {
-		return metric.ErrorInvalidMetricType
 	}
-
 	s := "insert into metrics (metric_type, metric_name, metric_value_int, metric_value_float) values ($1, $2, $3, $4)"
 
 	_, err := common.RetryWithResult(ctx, func() (sql.Result, error) {
@@ -161,8 +162,6 @@ func (c *PostgresClient) ExecuteUpdate(ctx context.Context, exec DBExecutor, m m
 		s += "metric_value_float = $1 "
 	} else if _, ok := m.(*metric.Counter); ok {
 		s += "metric_value_int = metric_value_int + $1 "
-	} else {
-		return metric.ErrorInvalidMetricType
 	}
 
 	s += "where metric_type = $2 and metric_name = $3"
@@ -213,8 +212,6 @@ func (c *PostgresClient) ExecuteRetrieve(ctx context.Context, exec DBExecutor, t
 		gauge.Value = mvf.Float64
 	} else if counter, ok := m.(*metric.Counter); ok {
 		counter.Value = mvi.Int64
-	} else {
-		return nil, metric.ErrorInvalidMetricType
 	}
 
 	return m, nil

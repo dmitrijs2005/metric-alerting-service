@@ -23,6 +23,7 @@ type JsonConfig struct {
 	DatabaseDsn   string          `json:"database_dsn"`
 	Key           string          `json:"key"`
 	CryptoKey     string          `json:"crypto_key"`
+	TrustedSubnet string          `json:"trusted_subnet"`
 }
 
 // parseJson loads configuration values from a JSON file into the provided
@@ -80,4 +81,5 @@ func parseJson(config *Config) {
 	config.StoreInterval = time.Duration(c.StoreInterval.Duration)
 	config.Restore = c.Restore
 	config.CryptoKey = c.CryptoKey
+	config.TrustedSubnet = c.TrustedSubnet
 }

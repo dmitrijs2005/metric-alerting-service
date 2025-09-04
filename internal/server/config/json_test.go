@@ -41,6 +41,7 @@ func Test_parseJson_PrecedenceAndParsing(t *testing.T) {
 		"store_interval": "10s",
 		"restore":        true,
 		"crypto_key":     "/env/key.pem",
+		"trusted_subnet": "192.168.1.0/24",
 	})
 
 	// JSON for flag path (durations as number, ns)
@@ -52,6 +53,7 @@ func Test_parseJson_PrecedenceAndParsing(t *testing.T) {
 		"store_interval": 2_000_000_000, // 2s in ns
 		"restore":        false,
 		"crypto_key":     "/flag/key.pem",
+		"trusted_subnet": "192.168.1.0/24",
 	})
 
 	t.Run("ENV path wins over flags path", func(t *testing.T) {
@@ -67,6 +69,7 @@ func Test_parseJson_PrecedenceAndParsing(t *testing.T) {
 			StoreInterval:   42 * time.Second,
 			Restore:         false,
 			CryptoKey:       "preset",
+			TrustedSubnet:   "preset",
 		}
 
 		parseJson(cfg)
@@ -78,6 +81,8 @@ func Test_parseJson_PrecedenceAndParsing(t *testing.T) {
 		assert.Equal(t, 10*time.Second, cfg.StoreInterval)
 		assert.Equal(t, true, cfg.Restore)
 		assert.Equal(t, "/env/key.pem", cfg.CryptoKey)
+		assert.Equal(t, "192.168.1.0/24", cfg.TrustedSubnet)
+
 	})
 
 	t.Run("falls back to flags when CONFIG is empty", func(t *testing.T) {
@@ -94,6 +99,7 @@ func Test_parseJson_PrecedenceAndParsing(t *testing.T) {
 		assert.Equal(t, 2*time.Second, cfg.StoreInterval) // from ns
 		assert.Equal(t, false, cfg.Restore)
 		assert.Equal(t, "/flag/key.pem", cfg.CryptoKey)
+		assert.Equal(t, "192.168.1.0/24", cfg.TrustedSubnet)
 	})
 
 	t.Run("no CONFIG and no flags → no changes", func(t *testing.T) {
@@ -108,6 +114,7 @@ func Test_parseJson_PrecedenceAndParsing(t *testing.T) {
 			StoreInterval:   3 * time.Second,
 			Restore:         true,
 			CryptoKey:       "ck",
+			TrustedSubnet:   "ts",
 		}
 		cfg := *orig // copy
 		parseJson(&cfg)

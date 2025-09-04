@@ -151,9 +151,11 @@ func (c *Collector) updatePSUtilsMemoryMetrics(ctx context.Context) {
 
 }
 
+var cpuPercentFunc = cpu.PercentWithContext
+
 func (c *Collector) updatePSUtilsCPUMetrics(ctx context.Context) {
 
-	percentages, err := cpu.PercentWithContext(ctx, time.Second, true)
+	percentages, err := cpuPercentFunc(ctx, time.Second, true)
 	if err != nil {
 		common.WriteToConsole("Error reading GOPSUTIL CPU data")
 		return

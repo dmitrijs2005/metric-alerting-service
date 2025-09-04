@@ -33,7 +33,6 @@ func isErrorRetriable(err error) bool {
 		return true
 	}
 
-	// Проверка PostgreSQL спец. ошибок
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
 		// Class 08 - Connection Exception
