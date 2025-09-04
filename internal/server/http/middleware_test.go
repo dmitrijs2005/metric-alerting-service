@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -453,4 +454,139 @@ func TestCompressingMiddleware_ReturnsWriterToPool(t *testing.T) {
 	require.NoError(t, gz.Close())
 	// put it back to keep the pool healthy
 	pool.Put(gz)
+}
+
+func TestCheckTrustedSubnetMiddleware(t *testing.T) {
+	_, cidr, _ := net.ParseCIDR("192.168.1.0/24")
+
+	s := &HTTPServer{TrustedSubnet: cidr}
+
+	tests := []struct {
+		name       string
+		realIP     string
+		wantStatus int
+	}{
+		{
+			name:       "missing header",
+			realIP:     "",
+			wantStatus: http.StatusForbidden,
+		},
+		{
+			name:       "ip outside subnet",
+			realIP:     "10.0.0.1",
+			wantStatus: http.StatusForbidden,
+		},
+		{
+			name:       "ip inside subnet",
+			realIP:     "192.168.1.42",
+			wantStatus: http.StatusOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := echo.New()
+
+			// создаём запрос
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			if tt.realIP != "" {
+				req.Header.Set("X-Real-IP", tt.realIP)
+			}
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+
+			// оборачиваем next-handler, который просто возвращает 200 OK
+			h := s.CheckTrustedSubnetMiddleware(func(c echo.Context) error {
+				return c.String(http.StatusOK, "ok")
+			})
+
+			// запускаем
+			err := h(c)
+
+			if tt.wantStatus == http.StatusOK {
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, rec.Code)
+			} else {
+				// echo.NewHTTPError возвращается как error
+				require.Error(t, err)
+				he, ok := err.(*echo.HTTPError)
+				require.True(t, ok)
+				require.Equal(t, tt.wantStatus, he.Code)
+			}
+		})
+	}
+}
+
+func TestDecryptMiddleware_ErrorDecrypt(t *testing.T) {
+	s := prepareTestServer() // твой helper
+	s.PrivateKey = nil       // чтобы точно упало
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString("bad-data"))
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	handler := s.DecryptMiddleware(func(c echo.Context) error { return nil })
+	err := handler(c)
+	require.Error(t, err)
+}
+
+func TestCheckTrustedSubnetMiddleware_NoHeader(t *testing.T) {
+	_, subnet, _ := net.ParseCIDR("127.0.0.1/32")
+	s := prepareTestServer()
+	s.TrustedSubnet = subnet
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	handler := s.CheckTrustedSubnetMiddleware(func(c echo.Context) error { return nil })
+	err := handler(c)
+	require.Error(t, err)
+}
+
+func mustParseCIDR(cidr string) *net.IPNet {
+	_, ipnet, err := net.ParseCIDR(cidr)
+	if err != nil {
+		panic(err)
+	}
+	return ipnet
+}
+
+func TestCheckTrustedSubnetMiddleware_InvalidIP(t *testing.T) {
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("X-Real-IP", "8.8.8.8")
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	s := &HTTPServer{TrustedSubnet: mustParseCIDR("127.0.0.0/8")}
+	mw := s.CheckTrustedSubnetMiddleware(func(c echo.Context) error {
+		return c.String(200, "ok")
+	})
+
+	err := mw(c)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "not in trusted subnet")
+}
+
+func TestDecryptMiddleware_BadPayload(t *testing.T) {
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("not-encrypted"))
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	// fake private key
+	privKey, _ := rsa.GenerateKey(rand.Reader, 2048)
+	s := &HTTPServer{PrivateKey: privKey}
+
+	// middleware цепляем
+	h := s.DecryptMiddleware(func(c echo.Context) error {
+		return c.String(200, "ok")
+	})
+
+	err := h(c)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "Cannot decrypt body")
 }

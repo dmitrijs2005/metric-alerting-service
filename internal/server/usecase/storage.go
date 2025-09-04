@@ -45,8 +45,6 @@ func NewMetricWithValue(metricType string, metricName string, metricValue any) (
 		if err := counter.Update(metricValue); err != nil {
 			return nil, err
 		}
-	} else {
-		return nil, metric.ErrorInvalidMetricType
 	}
 
 	return m, nil

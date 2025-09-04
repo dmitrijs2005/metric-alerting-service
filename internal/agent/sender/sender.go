@@ -9,6 +9,7 @@ import (
 	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -20,6 +21,7 @@ import (
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/secure"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/proto"
 
 	pb "github.com/dmitrijs2005/metric-alerting-service/internal/proto"
@@ -148,7 +150,11 @@ func (s *Sender) SendMetricGRPCEncrypted(m metric.Metric, client pb.MetricServic
 
 	reqb, err := proto.Marshal(req)
 	if err != nil {
-		common.NewWrappedError("Error marshalling request", err)
+		return common.NewWrappedError("Error marshalling request", err)
+	}
+
+	if s.PubKey == nil {
+		return errors.New("no public key specified")
 	}
 
 	encryptedData, err := secure.EncryptRSAOAEPChunked(reqb, s.PubKey)
@@ -389,7 +395,7 @@ func (s *Sender) Run(ctx context.Context, wg *sync.WaitGroup) error {
 
 	if s.UseGRPC {
 
-		conn, err := grpc.NewClient(s.ServerURL, grpc.WithInsecure())
+		conn, err := grpc.NewClient(s.ServerURL, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
 			return err
 		}

@@ -10,6 +10,7 @@ import (
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage/memory"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
 )
 
@@ -61,11 +62,13 @@ func TestMetricsServer_Run(t *testing.T) {
 	go si.Serve(lis)
 	defer si.Stop()
 
-	conn, err := grpc.DialContext(ctx, "bufnet",
-		grpc.WithContextDialer(dialer(si, lis)),
-		grpc.WithInsecure(),
+	conn, err := grpc.NewClient(
+		"passthrough:///bufnet",
+		grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
+			return lis.Dial()
+		}),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
-
 	require.NoError(t, err)
 	defer conn.Close()
 
@@ -76,4 +79,10 @@ func TestMetricsServer_Run(t *testing.T) {
 	require.NoError(t, err)
 
 	cancel()
+}
+
+func TestUpdateMetricValueEncrypted_NoKey(t *testing.T) {
+	s := &MetricsServer{privateKey: nil}
+	_, err := s.UpdateMetricValueEncrypted(context.Background(), &pb.EncryptedMessage{Data: []byte("abc")})
+	require.Error(t, err)
 }

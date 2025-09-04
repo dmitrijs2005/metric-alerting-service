@@ -5,7 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dmitrijs2005/metric-alerting-service/internal/testutils"
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestParseEnv(t *testing.T) {
@@ -110,7 +111,7 @@ func TestParseEnv(t *testing.T) {
 				panic(err)
 			}
 
-			testutils.AssertEqualStructs(t, config, tt.expected)
+			assert.Empty(t, cmp.Diff(config, tt.expected))
 		})
 	}
 }

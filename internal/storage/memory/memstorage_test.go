@@ -304,7 +304,6 @@ func BenchmarkMemStorage_ConcurrentAdd(b *testing.B) {
 	})
 }
 
-// фейковая метрика для тестов
 type fakeMetric struct {
 	name  string
 	typ   metric.MetricType
@@ -338,36 +337,36 @@ func TestMemStorage(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, m1, got)
 
-	// Add (уже существует)
+	// Add
 	err = st.Add(ctx, m1)
 	assert.ErrorIs(t, err, common.ErrorMetricAlreadyExists)
 
-	// Retrieve (нет метрики)
+	// Retrieve
 	_, err = st.Retrieve(ctx, "gauge", "unknown")
 	assert.ErrorIs(t, err, common.ErrorMetricDoesNotExist)
 
-	// RetrieveAll (покрыть range)
+	// RetrieveAll
 	_ = st.Add(ctx, m2)
 	all, err := st.RetrieveAll(ctx)
 	assert.NoError(t, err)
 	assert.Len(t, all, 2)
 
-	// Update (успешно)
+	// Update
 	err = st.Update(ctx, m1, 99)
 	assert.NoError(t, err)
 	assert.Equal(t, 99, m1.GetValue())
 
-	// Update (нет метрики)
+	// Update
 	m3 := &fakeMetric{name: "baz", typ: "counter", value: 0}
 	err = st.Update(ctx, m3, 123)
 	assert.ErrorIs(t, err, common.ErrorMetricDoesNotExist)
 
-	// UpdateBatch (успешно)
+	// UpdateBatch
 	metrics := []metric.Metric{m1, m2}
 	err = st.UpdateBatch(ctx, &metrics)
 	assert.NoError(t, err)
 
-	// UpdateBatch (с ошибкой)
+	// UpdateBatch
 	mErr := &fakeMetric{name: "bad", typ: "gauge", value: 0, err: errors.New("fail")}
 	_ = st.Add(ctx, mErr)
 	metricsWithErr := []metric.Metric{mErr}

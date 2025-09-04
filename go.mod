@@ -90,6 +90,7 @@ require (
 )
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/google/go-cmp v0.7.0
 	github.com/jackc/pgerrcode v0.0.0-20240316143900-6e2875d9b438

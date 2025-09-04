@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -17,10 +18,11 @@ import (
 	"github.com/dmitrijs2005/metric-alerting-service/internal/dto"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/server/usecase"
-	"github.com/dmitrijs2005/metric-alerting-service/internal/storage/db"
+	"github.com/dmitrijs2005/metric-alerting-service/internal/storage"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/storage/memory"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -29,12 +31,35 @@ var (
 	metric2 = &metric.Gauge{Name: "gauge1", Value: 1.234}
 )
 
-func prepareTestServer() *HTTPServer {
-	a := "http://localhost:8080"
+type faultyStorage struct{}
+
+func (f faultyStorage) Add(ctx context.Context, m metric.Metric) error {
+	return errors.New("forced error in Add")
+}
+func (f faultyStorage) Update(ctx context.Context, m metric.Metric, v interface{}) error {
+	return errors.New("forced error in Update")
+}
+func (f faultyStorage) Retrieve(ctx context.Context, t metric.MetricType, n string) (metric.Metric, error) {
+	return nil, errors.New("forced error in Retrieve")
+}
+func (f faultyStorage) RetrieveAll(ctx context.Context) ([]metric.Metric, error) {
+	return nil, errors.New("forced error in RetrieveAll")
+}
+func (f faultyStorage) UpdateBatch(ctx context.Context, metrics *[]metric.Metric) error {
+	return errors.New("forced error in UpdateBatch")
+}
+
+func prepareTestSTorage() storage.Storage {
 	s := memory.NewMemStorage()
 
 	s.Data["counter|counter1"] = metric1
 	s.Data["gauge|gauge1"] = metric2
+	return s
+}
+
+func prepareTestServer() *HTTPServer {
+	a := "http://localhost:8080"
+	s := prepareTestSTorage()
 
 	return &HTTPServer{
 		Address: a,
@@ -243,23 +268,25 @@ func TestHTTPServer_ValueJSONHandler(t *testing.T) {
 		code        int
 	}
 	tests := []struct {
-		name   string
-		method string
-		mtype  string
-		mname  string
-		mvalue interface{}
-		want   want
+		name    string
+		method  string
+		mtype   string
+		mname   string
+		mvalue  interface{}
+		storage storage.Storage
+		want    want
 	}{
 
-		{name: "Counter OK", method: http.MethodPost, mtype: "counter", mname: metric1.Name, mvalue: metric1.Value, want: want{code: 200, response: &dto.Metrics{ID: metric1.Name, Delta: &metric1.Value, MType: "counter"}, contentType: "application/json"}},
-		{name: "Gauge OK", method: http.MethodGet, mtype: "gauge", mname: metric2.Name, mvalue: metric2.Value, want: want{code: 200, response: &dto.Metrics{ID: metric2.Name, Value: &metric2.Value, MType: "gauge"}, contentType: "application/json"}},
-		{name: "Unnown metric", method: http.MethodPost, mtype: "unknown", mname: "", mvalue: 0, want: want{code: 404, response: nil, contentType: "text/plain; charset=UTF-8"}},
+		{name: "Counter OK", storage: stor, method: http.MethodPost, mtype: "counter", mname: metric1.Name, mvalue: metric1.Value, want: want{code: 200, response: &dto.Metrics{ID: metric1.Name, Delta: &metric1.Value, MType: "counter"}, contentType: "application/json"}},
+		{name: "Gauge OK", storage: stor, method: http.MethodGet, mtype: "gauge", mname: metric2.Name, mvalue: metric2.Value, want: want{code: 200, response: &dto.Metrics{ID: metric2.Name, Value: &metric2.Value, MType: "gauge"}, contentType: "application/json"}},
+		{name: "Unnown metric", storage: stor, method: http.MethodPost, mtype: "unknown", mname: "", mvalue: 0, want: want{code: 404, response: nil, contentType: "text/plain; charset=UTF-8"}},
+		{name: "Bad storage", storage: faultyStorage{}, method: http.MethodPost, mtype: "unknown", mname: "", mvalue: 0, want: want{code: 500, response: nil, contentType: "text/plain; charset=UTF-8"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &HTTPServer{
 				Address: addr,
-				Storage: stor,
+				Storage: tt.storage,
 			}
 
 			e := echo.New()
@@ -304,10 +331,50 @@ func TestHTTPServer_ValueJSONHandler(t *testing.T) {
 	}
 }
 
+type MockDBClient struct {
+	mock.Mock
+}
+
+func (c *MockDBClient) Ping(ctx context.Context) error {
+	return nil
+}
+
+func (c *MockDBClient) Add(ctx context.Context, m metric.Metric) error {
+	return nil
+}
+
+func (c *MockDBClient) Update(ctx context.Context, m metric.Metric, v interface{}) error {
+	return nil
+}
+
+func (c *MockDBClient) Retrieve(ctx context.Context, m metric.MetricType, n string) (metric.Metric, error) {
+	return nil, nil
+}
+
+func (c *MockDBClient) RetrieveAll(ctx context.Context) ([]metric.Metric, error) {
+	return nil, nil
+}
+
+func NewMockDBClient() *MockDBClient {
+	return &MockDBClient{}
+}
+
+func (c *MockDBClient) Close() error {
+	return nil
+}
+
+func (c *MockDBClient) RunMigrations(ctx context.Context) error {
+	return nil
+}
+
+func (c *MockDBClient) UpdateBatch(ctx context.Context, metrics *[]metric.Metric) error {
+	return nil
+}
+
 func TestHTTPServer_PingHandler(t *testing.T) {
 
 	addr := "http://localhost:8080"
-	stor := db.NewMockDBClient()
+	stor := NewMockDBClient()
 
 	s := &HTTPServer{
 		Address: addr,
@@ -334,6 +401,7 @@ func TestHTTPServer_UpdateJSONHandler(t *testing.T) {
 	stor := memory.NewMemStorage()
 
 	ctr1 := &metric.Counter{Name: "ctr1"}
+	g1 := &metric.Gauge{Name: "g1"}
 
 	type want struct {
 		name        string
@@ -342,30 +410,41 @@ func TestHTTPServer_UpdateJSONHandler(t *testing.T) {
 		code        int
 	}
 	tests := []struct {
-		name   string
-		method string
-		mname  string
-		mtype  metric.MetricType
-		want   want
-		mvalue int64
+		name    string
+		method  string
+		payload any
+		storage storage.Storage
+		want    want
 	}{
 
-		{name: "Counter increment 1", method: http.MethodPost, mtype: ctr1.GetType(), mname: ctr1.GetName(), mvalue: 1, want: want{code: 200, name: ctr1.Name, value: 1, contentType: "application/json"}},
-		{name: "Counter increment 2", method: http.MethodPost, mtype: ctr1.GetType(), mname: ctr1.GetName(), mvalue: 2, want: want{code: 200, name: ctr1.Name, value: 3, contentType: "application/json"}},
+		{name: "Counter increment 1", method: http.MethodPost, payload: &dto.Metrics{ID: ctr1.GetName(), MType: string(ctr1.GetType()), Delta: int64Ptr(1)},
+			storage: stor, want: want{code: 200, name: ctr1.Name, value: 1, contentType: "application/json"}},
+		{name: "Counter increment 2", method: http.MethodPost, payload: &dto.Metrics{ID: ctr1.GetName(), MType: string(ctr1.GetType()), Delta: int64Ptr(2)},
+			storage: stor, want: want{code: 200, name: ctr1.Name, value: 3, contentType: "application/json"}},
+		{name: "Error1", method: http.MethodPost, payload: "123",
+			storage: stor, want: want{code: 400, contentType: "text/plain; charset=UTF-8"}},
+		{name: "Error 2", method: http.MethodPost, payload: &dto.Metrics{ID: ctr1.GetName(), MType: string(ctr1.GetType())},
+			storage: stor, want: want{code: 400, contentType: "text/plain; charset=UTF-8"}},
+		{name: "Error 3", method: http.MethodPost, payload: &dto.Metrics{ID: g1.GetName(), MType: string(g1.GetType())},
+			storage: stor, want: want{code: 400, contentType: "text/plain; charset=UTF-8"}},
+		{name: "Unknown metric type", method: http.MethodPost, payload: &dto.Metrics{ID: ctr1.GetName(), MType: "unknown", Delta: int64Ptr(2)},
+			storage: stor, want: want{code: 400, contentType: "text/plain; charset=UTF-8"}},
+		{name: "Bad storage", method: http.MethodPost, payload: &dto.Metrics{ID: ctr1.GetName(), MType: "unknown", Delta: int64Ptr(2)},
+			storage: faultyStorage{}, want: want{code: 500, contentType: "text/plain; charset=UTF-8"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &HTTPServer{
 				Address: addr,
-				Storage: stor,
+				Storage: tt.storage,
 			}
 
 			e := echo.New()
 
-			payload := &dto.Metrics{ID: tt.mname, MType: string(tt.mtype), Delta: int64Ptr(tt.mvalue)}
+			//payload := &dto.Metrics{ID: tt.mname, MType: string(tt.mtype), Delta: int64Ptr(tt.mvalue)}
 
 			// Marshal the payload to JSON
-			jsonData, err := json.Marshal(payload)
+			jsonData, err := json.Marshal(tt.payload)
 			if err != nil {
 				t.Fatalf("Failed to marshal JSON: %v", err)
 			}
@@ -381,151 +460,16 @@ func TestHTTPServer_UpdateJSONHandler(t *testing.T) {
 				assert.Equal(t, tt.want.code, rec.Code)
 				assert.Equal(t, tt.want.contentType, rec.Header().Get("Content-Type"))
 
-				var response dto.Metrics
-				err := json.Unmarshal(rec.Body.Bytes(), &response)
-				assert.NoError(t, err)
-
-				assert.Equal(t, tt.want.value, *response.Delta)
-
+				if tt.want.code == http.StatusOK {
+					var response dto.Metrics
+					err := json.Unmarshal(rec.Body.Bytes(), &response)
+					assert.NoError(t, err)
+					assert.Equal(t, tt.want.value, *response.Delta)
+				}
 			}
 		})
 	}
 }
-
-// func TestHTTPServer_retrieveMetric(t *testing.T) {
-
-// 	ctx := context.Background()
-
-// 	type args struct {
-// 		metricType string
-// 		metricName string
-// 	}
-// 	tests := []struct {
-// 		args    args
-// 		want    metric.Metric
-// 		name    string
-// 		wantErr bool
-// 	}{
-// 		{name: "Counter OK", args: args{string(metric.MetricTypeCounter), "counter1"}, want: &metric.Counter{Name: "counter1", Value: 1}},
-// 		{name: "Gauge OK", args: args{string(metric.MetricTypeGauge), "gauge1"}, want: &metric.Gauge{Name: "gauge1", Value: 1.234}},
-// 		{name: "Unknown", args: args{"unknown", "u1"}, wantErr: true},
-// 	}
-// 	for _, tt := range tests {
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			s := prepareTestServer()
-
-// 			got, err := s.retrieveMetric(ctx, tt.args.metricType, tt.args.metricName)
-// 			if (err != nil) != tt.wantErr {
-// 				t.Errorf("HTTPServer.retrieveMetric() error = %v, wantErr %v", err, tt.wantErr)
-// 				return
-// 			}
-// 			if !reflect.DeepEqual(got, tt.want) {
-// 				t.Errorf("HTTPServer.retrieveMetric() = %v, want %v", got, tt.want)
-// 			}
-// 		})
-// 	}
-// }
-
-// func TestHTTPServer_updateMetric(t *testing.T) {
-
-// 	a := "http://localhost:8080"
-// 	s := memory.NewMemStorage()
-
-// 	m1 := &metric.Counter{Name: "counter1", Value: 1}
-// 	m2 := &metric.Gauge{Name: "gauge1", Value: 1.234}
-
-// 	s.Data["counter|counter1"] = m1
-// 	s.Data["gauge|gauge1"] = m2
-
-// 	ctx := context.Background()
-
-// 	type args struct {
-// 		metricValue any
-// 		m           metric.Metric
-// 	}
-// 	tests := []struct {
-// 		wantValue any
-// 		args      args
-// 		name      string
-// 		wantErr   bool
-// 	}{
-// 		{name: "Counter OK", args: args{m: m1, metricValue: int64(2)}, wantErr: false, wantValue: int64(3)},
-// 		{name: "Gauge OK", args: args{m: m2, metricValue: float64(2.345)}, wantErr: false, wantValue: float64(2.345)},
-// 	}
-// 	for _, tt := range tests {
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			s := &HTTPServer{
-// 				Address: a,
-// 				Storage: s,
-// 			}
-// 			if err := s.updateMetric(ctx, tt.args.m, tt.args.metricValue); (err != nil) != tt.wantErr {
-// 				t.Errorf("HTTPServer.updateMetric() error = %v, wantErr %v", err, tt.wantErr)
-// 			}
-
-// 			m, err := s.retrieveMetric(ctx, string(tt.args.m.GetType()), tt.args.m.GetName())
-// 			if err != nil {
-// 				t.Errorf("HTTPServer.updateMetric() error = %v, wantErr %v", err, tt.wantErr)
-// 			}
-// 			if m.GetValue() != tt.wantValue {
-// 				t.Errorf("HTTPServer.updateMetric() error = wrong value, %v, wanted: %v ", m.GetValue(), tt.wantValue)
-// 			}
-
-// 		})
-// 	}
-// }
-
-// func TestHTTPServer_updateMetricByValue(t *testing.T) {
-// 	ctx := context.Background()
-// 	type args struct {
-// 		metricValue interface{}
-// 		metricType  string
-// 		metricName  string
-// 	}
-// 	tests := []struct {
-// 		args    args
-// 		want    metric.Metric
-// 		name    string
-// 		wantErr bool
-// 	}{
-// 		{name: "Counter", args: args{metricType: "counter", metricName: "c1", metricValue: int64(1)}, wantErr: false, want: &metric.Counter{Name: "c1", Value: int64(1)}},
-// 	}
-// 	for _, tt := range tests {
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			s := prepareTestServer()
-// 			got, err := s.updateMetricByValue(ctx, tt.args.metricType, tt.args.metricName, tt.args.metricValue)
-// 			if (err != nil) != tt.wantErr {
-// 				t.Errorf("HTTPServer.updateMetricByValue() error = %v, wantErr %v", err, tt.wantErr)
-// 				return
-// 			}
-// 			if !reflect.DeepEqual(got, tt.want) {
-// 				t.Errorf("HTTPServer.updateMetricByValue() = %v, want %v", got, tt.want)
-// 			}
-// 		})
-// 	}
-// }
-
-// func TestHTTPServer_fillValue(t *testing.T) {
-// 	type args struct {
-// 		m metric.Metric
-// 		r *dto.Metrics
-// 	}
-// 	tests := []struct {
-// 		args    args
-// 		name    string
-// 		wantErr bool
-// 	}{
-// 		{name: "OK", args: args{m: &metric.Counter{Name: "c1", Value: int64(1)}, r: &dto.Metrics{}}, wantErr: false},
-// 		{name: "Error", args: args{m: &metric.Gauge{Name: "g1", Value: float64(1.234)}, r: &dto.Metrics{}}, wantErr: false},
-// 	}
-// 	for _, tt := range tests {
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			s := prepareTestServer()
-// 			if err := s.fillValue(tt.args.m, tt.args.r); (err != nil) != tt.wantErr {
-// 				t.Errorf("HTTPServer.fillValue() error = %v, wantErr %v", err, tt.wantErr)
-// 			}
-// 		})
-// 	}
-// }
 
 func TestHTTPServer_MetricFromDto(t *testing.T) {
 	type args struct {
@@ -538,6 +482,7 @@ func TestHTTPServer_MetricFromDto(t *testing.T) {
 		wantErr bool
 	}{
 		{name: "ok", args: args{mDTO: dto.Metrics{ID: "m1", MType: "counter", Delta: int64Ptr(1)}}, want: &metric.Counter{Name: "m1", Value: 1}, wantErr: false},
+		{name: "error_unknown_type", args: args{mDTO: dto.Metrics{ID: "m1", MType: "unknown", Delta: int64Ptr(1)}}, want: &metric.Counter{Name: "m1", Value: 1}, wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -547,8 +492,10 @@ func TestHTTPServer_MetricFromDto(t *testing.T) {
 				t.Errorf("HTTPServer.MetricFromDto() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("HTTPServer.MetricFromDto() = %v, want %v", got, tt.want)
+			if !tt.wantErr {
+				if !reflect.DeepEqual(got, tt.want) {
+					t.Errorf("HTTPServer.MetricFromDto() = %v, want %v", got, tt.want)
+				}
 			}
 		})
 	}
@@ -579,17 +526,23 @@ func TestHTTPServer_DTOFromMetric(t *testing.T) {
 }
 
 func TestHTTPServer_UpdatesJSONHandler(t *testing.T) {
+	stor := prepareTestSTorage()
 	ctx := context.Background()
 	tests := []struct {
-		name    string
-		payload []dto.Metrics
-		want    []metric.Metric
-		wantErr bool
+		name     string
+		payload  any
+		storage  storage.Storage
+		want     []metric.Metric
+		wantErr  bool
+		wantCode int
 	}{
-		{"ok",
-			[]dto.Metrics{{ID: metric1.Name, MType: "counter", Delta: int64Ptr(2)}, {ID: metric2.Name, MType: "gauge", Value: float64Ptr(2.345)}},
-			[]metric.Metric{&metric.Counter{Name: metric1.Name, Value: 3}, &metric.Gauge{Name: metric2.Name, Value: 2.345}},
-			false},
+		{name: "ok",
+			payload: []dto.Metrics{{ID: metric1.Name, MType: "counter", Delta: int64Ptr(2)}, {ID: metric2.Name, MType: "gauge", Value: float64Ptr(2.345)}},
+			want:    []metric.Metric{&metric.Counter{Name: metric1.Name, Value: 3}, &metric.Gauge{Name: metric2.Name, Value: 2.345}},
+			storage: stor, wantErr: false, wantCode: 200},
+		{name: "error1", storage: stor, payload: []dto.Metrics{{ID: metric1.Name, MType: "unknown", Delta: int64Ptr(2)}}, want: []metric.Metric{}, wantErr: false, wantCode: 400},
+		{name: "error2", storage: stor, payload: "wrong body", want: []metric.Metric{}, wantErr: false, wantCode: 400},
+		{name: "error3", payload: []dto.Metrics{{ID: metric1.GetName(), MType: string(metric1.GetType()), Delta: int64Ptr(2)}}, want: []metric.Metric{}, wantErr: false, wantCode: 400, storage: faultyStorage{}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -607,20 +560,25 @@ func TestHTTPServer_UpdatesJSONHandler(t *testing.T) {
 			c := e.NewContext(req, rec)
 
 			s := prepareTestServer()
+			s.Storage = tt.storage
 			if err := s.UpdatesJSONHandler(c); (err != nil) != tt.wantErr {
 				t.Errorf("HTTPServer.UpdatesJSONHandler() error = %v, wantErr %v", err, tt.wantErr)
 			}
 
-			for _, mwant := range tt.want {
-				m, err := usecase.RetrieveMetric(ctx, s.Storage, string(mwant.GetType()), mwant.GetName())
-				if (err != nil) != tt.wantErr {
-					t.Errorf("HTTPServer.TestHTTPServer_UpdatesJSONHandler() error = %v, wantErr %v", err, tt.wantErr)
-					return
-				}
+			assert.Equal(t, tt.wantCode, rec.Code)
 
-				if m.GetValue() != mwant.GetValue() {
-					t.Errorf("error value: %v %v ", m.GetValue(), mwant.GetValue())
-					return
+			if tt.wantCode == 200 {
+				for _, mwant := range tt.want {
+					m, err := usecase.RetrieveMetric(ctx, s.Storage, string(mwant.GetType()), mwant.GetName())
+					if (err != nil) != tt.wantErr {
+						t.Errorf("HTTPServer.TestHTTPServer_UpdatesJSONHandler() error = %v, wantErr %v", err, tt.wantErr)
+						return
+					}
+
+					if m.GetValue() != mwant.GetValue() {
+						t.Errorf("error value: %v %v ", m.GetValue(), mwant.GetValue())
+						return
+					}
 				}
 			}
 

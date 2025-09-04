@@ -106,13 +106,6 @@ func (s *HTTPServer) ConfigureRoutes() *echo.Echo {
 	return e
 }
 
-func (s *HTTPServer) middlewareIf(condtion bool, mw ...echo.MiddlewareFunc) []echo.MiddlewareFunc {
-	if condtion {
-		return mw
-	}
-	return nil
-}
-
 func (s *HTTPServer) Run(ctx context.Context, e *echo.Echo) error {
 
 	server := &http.Server{

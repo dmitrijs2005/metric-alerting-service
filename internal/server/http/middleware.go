@@ -108,7 +108,6 @@ func (s *HTTPServer) CompressingMiddleware(next echo.HandlerFunc) echo.HandlerFu
 		// if gzip is not supported, do nothing
 		if strings.Contains(req.Header.Get("Accept-Encoding"), "gzip") {
 
-			// создаём gzip.Writer поверх текущего w
 			gw, err := NewGzipWriter(w, resp, s.GzipWriterPool)
 
 			if err != nil {
@@ -130,13 +129,11 @@ func (s *HTTPServer) CompressingMiddleware(next echo.HandlerFunc) echo.HandlerFu
 			})
 		}
 
-		// проверяем, что клиент отправил серверу сжатые данные в формате gzip
 		ce := req.Header.Get("Content-Encoding")
 		sendsGzip := strings.Contains(ce, "gzip")
 
 		if sendsGzip {
 
-			// оборачиваем тело запроса в io.Reader с поддержкой декомпрессии
 			r, err := NewGzipReader(req.Body)
 			if err != nil {
 				return echo.NewHTTPError(http.StatusInternalServerError, "Cannot initialize Gzip")

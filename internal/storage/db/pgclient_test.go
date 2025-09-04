@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/dmitrijs2005/metric-alerting-service/internal/metric"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -138,7 +139,11 @@ func RunRepositoryTests(t *testing.T, ctx context.Context, client *PostgresClien
 			v interface{}
 		}
 
-		updates := []upd{upd{m: &metric.Counter{Name: "counter1", Value: int64(2)}, v: int64(4)}, upd{m: &metric.Gauge{Name: "gauge1", Value: float64(4.15)}, v: float64(4.15)}}
+		updates := []upd{
+			upd{m: &metric.Counter{Name: "new", Value: int64(2)}, v: int64(2)},
+			upd{m: &metric.Counter{Name: "counter1", Value: int64(2)}, v: int64(4)},
+			upd{m: &metric.Gauge{Name: "gauge1", Value: float64(4.15)}, v: float64(4.15)},
+		}
 
 		var batch []metric.Metric
 		for _, item := range updates {
@@ -164,4 +169,74 @@ func RunRepositoryTests(t *testing.T, ctx context.Context, client *PostgresClien
 
 	})
 
+}
+
+func TestPostgresClient_RetrieveAll(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("happy path: returns counter and gauge", func(t *testing.T) {
+		sqlDB, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer sqlDB.Close()
+
+		client := &PostgresClient{db: sqlDB}
+
+		rows := sqlmock.NewRows([]string{"metric_type", "metric_name", "metric_value_int", "metric_value_float"}).
+			AddRow("counter", "requests", int64(42), nil).
+			AddRow("gauge", "cpu", nil, float64(12.34))
+
+		mock.ExpectQuery("select metric_type").
+			WillReturnRows(rows)
+
+		metrics, err := client.RetrieveAll(ctx)
+		require.NoError(t, err)
+		require.Len(t, metrics, 2)
+
+		require.Equal(t, "requests", metrics[0].GetName())
+		require.EqualValues(t, int64(42), metrics[0].GetValue())
+
+		require.Equal(t, "cpu", metrics[1].GetName())
+		require.InDelta(t, 12.34, metrics[1].GetValue().(float64), 0.001)
+
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("invalid metric type", func(t *testing.T) {
+		sqlDB, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer sqlDB.Close()
+
+		client := &PostgresClient{db: sqlDB}
+
+		rows := sqlmock.NewRows([]string{"metric_type", "metric_name", "metric_value_int", "metric_value_float"}).
+			AddRow("invalid_type", "broken", nil, nil)
+
+		mock.ExpectQuery("select metric_type").
+			WillReturnRows(rows)
+
+		metrics, err := client.RetrieveAll(ctx)
+		require.ErrorIs(t, err, metric.ErrorInvalidMetricType)
+		require.Nil(t, metrics)
+
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+}
+
+func TestRetrieveAll_InvalidType(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer sqlDB.Close()
+
+	client := &PostgresClient{db: sqlDB}
+
+	rows := sqlmock.NewRows([]string{"metric_type", "metric_name", "metric_value_int", "metric_value_float"}).
+		AddRow("bad-type", "foo", 0, 0.0)
+
+	mock.ExpectQuery("select metric_type").
+		WillReturnRows(rows)
+
+	metrics, err := client.RetrieveAll(context.Background())
+	require.Error(t, err)
+	require.Nil(t, metrics)
 }

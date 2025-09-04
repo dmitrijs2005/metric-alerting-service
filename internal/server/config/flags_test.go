@@ -6,7 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dmitrijs2005/metric-alerting-service/internal/testutils"
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestParseFlags(t *testing.T) {
@@ -40,7 +41,7 @@ func TestParseFlags(t *testing.T) {
 			config.LoadDefaults()
 			parseFlags(config)
 
-			testutils.AssertEqualStructs(t, config, tt.expected)
+			assert.Empty(t, cmp.Diff(config, tt.expected))
 		})
 	}
 }

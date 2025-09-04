@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/json"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -197,126 +198,6 @@ func TestSender_GracefulShutdown_WaitsForInFlightMetrics(t *testing.T) {
 	}
 }
 
-// const bufSize = 1024 * 1024
-
-// // fake server
-// type fakeMetricServer struct {
-// 	pb.UnimplementedMetricServiceServer
-// 	privateKey *rsa.PrivateKey
-// 	t          *testing.T
-// }
-
-// func (f *fakeMetricServer) UpdateMetricValueEncrypted(ctx context.Context, req *pb.EncryptedMessage) (*pb.UpdateMetricValueResponse, error) {
-// 	// расшифровываем
-// 	decrypted, err := secure.DecryptRSAOAEPChunked(string(req.Data), f.privateKey)
-// 	require.NoError(f.t, err)
-
-// 	var realReq pb.UpdateMetricValueRequest
-// 	err = proto.Unmarshal(decrypted, &realReq)
-// 	require.NoError(f.t, err)
-
-// 	// проверяем содержимое
-// 	require.Equal(f.t, "cpu", realReq.MetricName)
-// 	require.Equal(f.t, "gauge", realReq.MetricType)
-// 	require.Equal(f.t, "42", realReq.MetricValue)
-
-// 	return &pb.UpdateMetricValueResponse{Value: realReq.MetricValue}, nil
-// }
-
-// func (f *fakeMetricServer) UpdateMetricValue(ctx context.Context, req *pb.UpdateMetricValueRequest) (*pb.UpdateMetricValueResponse, error) {
-
-// 	fmt.Println("qqsssssssssssssssssqqq!!!!!!!")
-
-// 	// проверяем содержимое
-// 	require.Equal(f.t, "cpu", req.MetricName)
-// 	require.Equal(f.t, "gauge", req.MetricType)
-// 	require.Equal(f.t, "42", req.MetricValue)
-
-// 	return &pb.UpdateMetricValueResponse{Value: req.MetricValue}, nil
-// }
-
-// // func dialer(s *grpc.Server, lis *bufconn.Listener) func(context.Context, string) (net.Conn, error) {
-// // 	return func(context.Context, string) (net.Conn, error) {
-// // 		return lis.Dial()
-// // 	}
-// // }
-
-// func bufDialer(context.Context, string) (net.Conn, error) {
-// 	return lis.Dial()
-// }
-
-// func TestSendMetricGRPCEncrypted(t *testing.T) {
-// 	ctx := context.Background()
-
-// 	// генерим RSA пару
-// 	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
-// 	require.NoError(t, err)
-// 	pubKey := &privKey.PublicKey
-
-// 	lis := bufconn.Listen(bufSize)
-// 	s := grpc.NewServer()
-// 	pb.RegisterMetricServiceServer(s, &fakeMetricServer{privateKey: privKey, t: t})
-// 	go s.Serve(lis)
-// 	defer s.Stop()
-
-// 	conn, err := grpc.DialContext(ctx, "bufnet",
-// 		grpc.WithContextDialer(dialer(s, lis)),
-// 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-// 	)
-// 	require.NoError(t, err)
-// 	defer conn.Close()
-
-// 	client := pb.NewMetricServiceClient(conn)
-
-// 	// создаём Sender с pubKey
-// 	snd := &Sender{PubKey: pubKey}
-
-// 	req := &pb.UpdateMetricValueRequest{
-// 		MetricType:  "gauge",
-// 		MetricName:  "cpu",
-// 		MetricValue: "42",
-// 	}
-
-// 	err = snd.SendMetricGRPCEncrypted(metric.NewGauge("cpu"), client, req)
-// 	require.NoError(t, err)
-// }
-
-// func TestSendMetricGRPC(t *testing.T) {
-// 	ctx := context.Background()
-
-// 	// генерим RSA пару
-// 	//privKey, err := rsa.GenerateKey(rand.Reader, 2048)
-// 	//require.NoError(t, err)
-// 	//pubKey := &privKey.PublicKey
-
-// 	lis := bufconn.Listen(bufSize)
-// 	s := grpc.NewServer()
-// 	pb.RegisterMetricServiceServer(s, &fakeMetricServer{t: t})
-// 	go s.Serve(lis)
-// 	defer s.Stop()
-
-// 	conn, err := grpc.DialContext(ctx, "bufnet",
-// 		grpc.WithContextDialer(dialer(s, lis)),
-// 		grpc.WithInsecure(),
-// 	)
-// 	require.NoError(t, err)
-// 	defer conn.Close()
-
-// 	//client := pb.NewMetricServiceClient(conn)
-
-// 	// создаём Sender
-// 	snd := &Sender{gRPCConn: conn}
-
-// 	// req := &pb.UpdateMetricValueRequest{
-// 	// 	MetricType:  "gauge",
-// 	// 	MetricName:  "cpu",
-// 	// 	MetricValue: "42",
-// 	// }
-
-// 	err = snd.SendMetricGRPC(metric.NewGauge("cpu"))
-// 	require.NoError(t, err)
-// }
-
 const bufSize = 1024 * 1024
 
 // bufconn dialer
@@ -326,12 +207,11 @@ func bufDialer(lis *bufconn.Listener) func(context.Context, string) (net.Conn, e
 	}
 }
 
-// ---------- Fake servers ----------
-
 // plain server
 type fakeMetricServer struct {
 	pb.UnimplementedMetricServiceServer
-	t *testing.T
+	t    *testing.T
+	priv *rsa.PrivateKey
 }
 
 func (f *fakeMetricServer) UpdateMetricValue(ctx context.Context, req *pb.UpdateMetricValueRequest) (*pb.UpdateMetricValueResponse, error) {
@@ -349,7 +229,6 @@ type fakeEncryptedServer struct {
 }
 
 func (f *fakeEncryptedServer) UpdateMetricValueEncrypted(ctx context.Context, req *pb.EncryptedMessage) (*pb.UpdateMetricValueResponse, error) {
-	// расшифровать
 	decrypted, err := secure.DecryptRSAOAEPChunked(string(req.Data), f.privateKey)
 	require.NoError(f.t, err)
 
@@ -364,8 +243,6 @@ func (f *fakeEncryptedServer) UpdateMetricValueEncrypted(ctx context.Context, re
 	return &pb.UpdateMetricValueResponse{Value: realReq.MetricValue}, nil
 }
 
-// ---------- Helpers ----------
-
 func startBufconnServer(t *testing.T, srv pb.MetricServiceServer) (*grpc.ClientConn, func()) {
 	lis := bufconn.Listen(bufSize)
 	s := grpc.NewServer()
@@ -377,9 +254,11 @@ func startBufconnServer(t *testing.T, srv pb.MetricServiceServer) (*grpc.ClientC
 		}
 	}()
 
-	ctx := context.Background()
-	conn, err := grpc.DialContext(ctx, "bufnet",
-		grpc.WithContextDialer(bufDialer(lis)),
+	conn, err := grpc.NewClient(
+		"passthrough:///bufnet",
+		grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
+			return lis.Dial()
+		}),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	require.NoError(t, err)
@@ -390,8 +269,6 @@ func startBufconnServer(t *testing.T, srv pb.MetricServiceServer) (*grpc.ClientC
 	}
 	return conn, cleanup
 }
-
-// ---------- Tests ----------
 
 func TestSendMetricGRPC_Plain(t *testing.T) {
 	conn, cleanup := startBufconnServer(t, &fakeMetricServer{t: t})
@@ -405,7 +282,6 @@ func TestSendMetricGRPC_Plain(t *testing.T) {
 }
 
 func TestSendMetricGRPC_Encrypted(t *testing.T) {
-	// генерим RSA пару
 	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 	pubKey := &privKey.PublicKey
@@ -418,4 +294,120 @@ func TestSendMetricGRPC_Encrypted(t *testing.T) {
 
 	err = snd.SendMetricGRPC(m)
 	require.NoError(t, err)
+}
+
+func TestSender_SendMetricGRPCEncrypted_HappyPath(t *testing.T) {
+
+	priv, _ := rsa.GenerateKey(rand.Reader, 2048)
+	pub := &priv.PublicKey
+
+	lis := bufconn.Listen(1024 * 1024)
+	s := grpc.NewServer()
+	pb.RegisterMetricServiceServer(s, &fakeMetricServer{t: t, priv: priv})
+	go s.Serve(lis)
+	defer s.Stop()
+
+	conn, err := grpc.NewClient(
+		"passthrough:///bufnet",
+		grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
+			return lis.Dial()
+		}),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	require.NoError(t, err)
+	defer conn.Close()
+
+	client := pb.NewMetricServiceClient(conn)
+	snd := &Sender{PubKey: pub}
+
+	req := &pb.UpdateMetricValueRequest{
+		MetricType:  "gauge",
+		MetricName:  "cpu",
+		MetricValue: "42",
+	}
+
+	err = snd.SendMetricGRPCEncrypted(metric.NewGauge("cpu"), client, req)
+	require.NoError(t, err)
+}
+
+func (f *fakeMetricServer) UpdateMetricValueEncrypted(ctx context.Context, req *pb.EncryptedMessage) (*pb.UpdateMetricValueResponse, error) {
+	decrypted, err := secure.DecryptRSAOAEPChunked(string(req.Data), f.priv)
+	require.NoError(f.t, err)
+
+	var m pb.UpdateMetricValueRequest
+	err = proto.Unmarshal(decrypted, &m)
+	require.NoError(f.t, err)
+
+	require.Equal(f.t, "cpu", m.MetricName)
+	return &pb.UpdateMetricValueResponse{Value: "42"}, nil
+}
+
+type fakeClient struct {
+	resp *pb.UpdateMetricValueResponse
+	err  error
+}
+
+func (f *fakeClient) UpdateMetricValueEncrypted(ctx context.Context, in *pb.EncryptedMessage, opts ...grpc.CallOption) (*pb.UpdateMetricValueResponse, error) {
+	return f.resp, f.err
+}
+
+func (f *fakeClient) UpdateMetricValue(ctx context.Context, in *pb.UpdateMetricValueRequest, opts ...grpc.CallOption) (*pb.UpdateMetricValueResponse, error) {
+	return nil, errors.New("not implemented")
+}
+
+func TestSendMetricGRPCEncrypted(t *testing.T) {
+	priv, _ := rsa.GenerateKey(rand.Reader, 2048)
+	pub := &priv.PublicKey
+
+	tests := []struct {
+		name    string
+		sender  *Sender
+		client  pb.MetricServiceClient
+		wantErr bool
+	}{
+		{
+			name:    "happy path",
+			sender:  &Sender{PubKey: pub},
+			client:  &fakeClient{resp: &pb.UpdateMetricValueResponse{Value: "ok"}, err: nil},
+			wantErr: false,
+		},
+		{
+			name:    "encryption fails (nil key)",
+			sender:  &Sender{PubKey: nil},
+			client:  &fakeClient{resp: &pb.UpdateMetricValueResponse{Value: "ok"}, err: nil},
+			wantErr: true,
+		},
+		{
+			name:    "gRPC client returns error",
+			sender:  &Sender{PubKey: pub},
+			client:  &fakeClient{resp: nil, err: errors.New("network error")},
+			wantErr: true,
+		},
+	}
+
+	req := &pb.UpdateMetricValueRequest{
+		MetricType:  "gauge",
+		MetricName:  "cpu",
+		MetricValue: "42",
+	}
+	m := metric.NewGauge("cpu")
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.sender.SendMetricGRPCEncrypted(m, tt.client, req)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestSendMetricGRPCEncrypted_NoPubKey(t *testing.T) {
+	s := &Sender{PubKey: nil}
+	client := &fakeClient{}
+
+	err := s.SendMetricGRPCEncrypted(metric.NewGauge("cpu"), client, &pb.UpdateMetricValueRequest{})
+	require.Error(t, err)
 }
